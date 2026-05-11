@@ -504,12 +504,25 @@ do
             return true
         end
 
-        local dungeonPresence = HS.Dungeon and (HS.Dungeon.isDungeonPresenceActive or HS.Dungeon.isInsideActive)
+        local dungeon = HS.Dungeon
+        if dungeon and type(dungeon.isRunProtectionActive) == "function" then
+            local ok, protected = pcall(dungeon.isRunProtectionActive)
+            if ok and protected then
+                Core.dungeonActive = true
+                Core.priorityOwner = "dungeon"
+                return true
+            end
+        end
+
+        local dungeonPresence = dungeon and (dungeon.isDungeonPresenceActive or dungeon.isInsideActive)
         if dungeonPresence then
             local ok, inside = pcall(dungeonPresence)
             if ok then
                 if inside then
                     Core.dungeonActive = true
+                    if dungeon and type(dungeon.markRunActive) == "function" then
+                        pcall(dungeon.markRunActive, "presence")
+                    end
                     return true
                 end
 
@@ -2510,7 +2523,6 @@ do
             Core.releasePriority("clan_quests")
             return false
         end
-        if HS.Dungeon then HS.Dungeon.queueHandled = true end
         Core.setCurrentAction("Running Dungeon", 5)
         pcall(function() Core.UIActionRemote:FireServer("DungeonGroupAction", "Create", privacy, dungeonType, difficulty) end)
         task.wait(0.2)
@@ -2520,6 +2532,10 @@ do
             return false
         end
         pcall(function() Core.UIActionRemote:FireServer("DungeonGroupAction", "Start") end)
+        if HS.Dungeon then
+            HS.Dungeon.queueHandled = true
+            if HS.Dungeon.markRunActive then HS.Dungeon.markRunActive("clan dungeon start") end
+        end
         Core.lockWorldTeleports(30)
         Core.releasePriority("clan_quests")
         return true
@@ -4324,6 +4340,13 @@ do
     Dungeon.queueHandled            = false
     Dungeon.queueDeferredInside     = false
     Dungeon.wasInside               = false
+    Dungeon.runActive               = false
+    Dungeon.runProtectionActive     = false
+    Dungeon.lastDungeonActivityAt   = 0
+    Dungeon.runProtectionStartedAt  = 0
+    Dungeon.runProtectionHeldLogged = false
+    Dungeon.runEnding               = false
+    Dungeon.runEndToken             = 0
     Dungeon.autoStartCooldownUntil  = 0
 
     -- ── Dungeon hover/hit state ─────────────────────────────────
@@ -4346,6 +4369,7 @@ do
     Dungeon.chestThread = nil
     Dungeon.regionLoadedHookInstalled = false
     Dungeon.forceEndedUntil = 0
+    Dungeon.RUN_PROTECTION_TIMEOUT = 20 * 60
     Dungeon.upgradeShopInfo = nil
     Dungeon.upgradeShopInfoLoaded = false
     Dungeon.lastUpgradeBuy = {}
@@ -4463,6 +4487,7 @@ do
     end
 
     function Dungeon.hasDungeonTargets()
+        if os.clock() < (Dungeon.forceEndedUntil or 0) then return false end
         local ds = workspace:FindFirstChild("DungeonStorage")
         if not ds then return false end
 
@@ -4476,6 +4501,9 @@ do
                                 local root = target:FindFirstChild("HumanoidRootPart") or target.PrimaryPart
                                 local humanoid = target:FindFirstChildOfClass("Humanoid")
                                 if root and (not humanoid or humanoid.Health > 0) then
+                                    if Dungeon.markRunActive then
+                                        Dungeon.markRunActive("bot detected")
+                                    end
                                     return true
                                 end
                             end
@@ -4494,7 +4522,86 @@ do
         return Dungeon.hasDungeonTargets()
     end
 
+    function Dungeon.markRunActive(reason)
+        local now = os.clock()
+        local wasProtected = Dungeon.runProtectionActive == true
+        Dungeon.runActive = true
+        Dungeon.runProtectionActive = true
+        Dungeon.runEnding = false
+        Dungeon.lastDungeonActivityAt = now
+        if (Dungeon.runProtectionStartedAt or 0) <= 0 then
+            Dungeon.runProtectionStartedAt = now
+        end
+        Dungeon.runProtectionHeldLogged = false
+        Core.lockWorldTeleports(3)
+        if not wasProtected then
+            Core.debugLog("Dungeon protection active:", reason or "presence")
+        end
+    end
+
+    function Dungeon.markRunEnding(reason)
+        Dungeon.runEndToken = (Dungeon.runEndToken or 0) + 1
+        if Dungeon.runProtectionActive and not Dungeon.runEnding then
+            Core.debugLog("Dungeon protection ending:", reason or "detected")
+        end
+        Dungeon.runEnding = true
+        Dungeon.lastDungeonActivityAt = os.clock()
+        if Dungeon.runProtectionActive then
+            Core.lockWorldTeleports(5)
+        end
+    end
+
+    function Dungeon.markRunEnded(reason)
+        local wasProtected = Dungeon.runProtectionActive == true or Dungeon.runActive == true or Core.dungeonActive == true
+        Dungeon.runEndToken = (Dungeon.runEndToken or 0) + 1
+        Dungeon.runActive = false
+        Dungeon.runProtectionActive = false
+        Dungeon.runProtectionStartedAt = 0
+        Dungeon.runProtectionHeldLogged = false
+        Dungeon.runEnding = false
+        Dungeon.lastDungeonActivityAt = os.clock()
+        Dungeon.forceEndedUntil = os.clock() + 10
+        Dungeon.autoStartCooldownUntil = math.max(Dungeon.autoStartCooldownUntil or 0, os.clock() + Core.DUNGEON_AUTOSTART_COOLDOWN)
+        Core.dungeonActive = false
+        Core.dungeonTeleportLockUntil = 0
+        if Core.priorityOwner == "dungeon" then Core.priorityOwner = nil end
+        if wasProtected then
+            Core.debugLog("Dungeon protection ending:", reason or "detected")
+        end
+        Dungeon.resetAutoStartDebounce("dungeon ended")
+        Dungeon.retryDeferredAutoStart((Core.DUNGEON_AUTOSTART_COOLDOWN or 3) + 0.25)
+        if Core.state.auto_cycle and HS.AutoCycle and not HS.AutoCycle.enabled then
+            Core.debugLog("Dungeon ended â€” resuming Auto Cycle")
+            HS.AutoCycle.start()
+        end
+    end
+
+    function Dungeon.isRunProtectionActive()
+        if Dungeon.runProtectionActive ~= true then return false end
+        local startedAt = Dungeon.runProtectionStartedAt or 0
+        if startedAt > 0 and os.clock() - startedAt > (Dungeon.RUN_PROTECTION_TIMEOUT or 1200) then
+            Core.debugLog("Dungeon protection timeout release")
+            Dungeon.markRunEnded("timeout release")
+            return false
+        end
+        return Dungeon.runProtectionActive == true
+    end
+
+    function Dungeon.scheduleRunEnd(delaySeconds, reason)
+        Dungeon.runEndToken = (Dungeon.runEndToken or 0) + 1
+        local token = Dungeon.runEndToken
+        task.delay(delaySeconds or 5, function()
+            if Dungeon.runEndToken ~= token then return end
+            Dungeon.markRunEnded(reason or "post reward grace")
+        end)
+    end
+
     function Dungeon.isStartBlockedByPresence()
+        if type(Dungeon.isRunProtectionActive) == "function" then
+            local ok, protected = pcall(Dungeon.isRunProtectionActive)
+            if ok and protected then return true end
+        end
+
         if type(Dungeon.isDungeonPresenceActive) == "function" then
             local ok, active = pcall(Dungeon.isDungeonPresenceActive)
             if ok and active then return true end
@@ -4517,9 +4624,13 @@ do
         end
     end
 
-    function Dungeon.deferAutoStartWhileInside()
+    function Dungeon.deferAutoStartWhileInside(reason)
         if not Dungeon.queueDeferredInside then
-            Core.debugLog("Dungeon auto-start deferred while active dungeon")
+            if reason == "run protection active" then
+                Core.debugLog("Dungeon auto-start skipped: run protection active")
+            else
+                Core.debugLog("Dungeon auto-start deferred while active dungeon")
+            end
         end
         Dungeon.queueDeferredInside = true
         Dungeon.queueHandled = false
@@ -4537,16 +4648,10 @@ do
     end
 
     function Dungeon.markEnded(reason)
-        if not Dungeon.wasInside and not Core.dungeonActive then return end
+        if not Dungeon.wasInside and not Core.dungeonActive and not Dungeon.runProtectionActive then return end
 
-        Dungeon.autoStartCooldownUntil = os.clock() + Core.DUNGEON_AUTOSTART_COOLDOWN
-        Core.dungeonActive = false  -- dungeon ended, allow cycle to resume
-        Core.dungeonTeleportLockUntil = 0
-        if Core.priorityOwner == "dungeon" then Core.priorityOwner = nil end
         Dungeon.wasInside = false
-        Dungeon.forceEndedUntil = os.clock() + 10
-        Dungeon.resetAutoStartDebounce("dungeon ended")
-        Dungeon.retryDeferredAutoStart((Core.DUNGEON_AUTOSTART_COOLDOWN or 3) + 0.25)
+        Dungeon.markRunEnded(reason or "detected")
         Core.clearCurrentAction("Running Dungeon")
         Core.clearCurrentAction("Farming Dungeon Enemies")
         Core.clearCurrentAction("Claiming Dungeon Chest")
@@ -4559,12 +4664,21 @@ do
     end
 
     function Dungeon.updateAutoStartState()
-        local insideDungeon = Dungeon.isInsideActive()
+        local botDetected = Dungeon.hasDungeonTargets and Dungeon.hasDungeonTargets() or false
+        local insideDungeon = botDetected or Dungeon.isInsideActive()
         if insideDungeon then
             Core.setCurrentAction("Running Dungeon", 3)
+            Dungeon.markRunActive(botDetected and "bot detected" or "presence")
         end
         if Dungeon.wasInside and not insideDungeon then
-            Dungeon.markEnded("storage cleared")
+            if Dungeon.isRunProtectionActive() then
+                if not Dungeon.runProtectionHeldLogged then
+                    Core.debugLog("Dungeon protection held between waves")
+                    Dungeon.runProtectionHeldLogged = true
+                end
+            else
+                Dungeon.markEnded("storage cleared")
+            end
         elseif not Dungeon.wasInside and insideDungeon then
             Core.lockWorldTeleports(20)
             Core.debugLog("Detected active dungeon instance")
@@ -4577,12 +4691,16 @@ do
     function Dungeon.refreshPresenceLock()
         local presenceActive = Dungeon.isDungeonPresenceActive()
         if presenceActive then
-            Core.lockWorldTeleports(3)
+            Dungeon.markRunActive("presence")
         end
 
         local autoStateActive = Dungeon.updateAutoStartState()
-        if presenceActive or autoStateActive then
+        if presenceActive or autoStateActive or Dungeon.isRunProtectionActive() then
             Core.lockWorldTeleports(3)
+            if not presenceActive and not autoStateActive and not Dungeon.runProtectionHeldLogged then
+                Core.debugLog("Dungeon protection held between waves")
+                Dungeon.runProtectionHeldLogged = true
+            end
             return true
         end
 
@@ -4614,8 +4732,14 @@ do
                     and args[1] == "SetRegionLoaded"
                     and args[2] == "Dungeon Lobby" then
                     task.defer(function()
+                        if HS.Dungeon and HS.Dungeon.eggRewardPending then
+                            if HS.Dungeon.markRunEnding then
+                                HS.Dungeon.markRunEnding("lobby loaded")
+                            end
+                            return
+                        end
                         if HS.Dungeon and HS.Dungeon.markEnded then
-                            HS.Dungeon.markEnded("SetRegionLoaded Dungeon Lobby")
+                            HS.Dungeon.markEnded("lobby loaded")
                         end
                     end)
                 end
@@ -4633,8 +4757,12 @@ do
         local timerText = Dungeon.getEffectiveTimerText()
         if timerText ~= "Queue Up" then Dungeon.resetAutoStartDebounce("timer changed"); return end
         if not Core.state.start_dungeon then return end
+        if Dungeon.isRunProtectionActive() then
+            Dungeon.deferAutoStartWhileInside("run protection active")
+            return
+        end
         if Dungeon.updateAutoStartState() or Dungeon.isStartBlockedByPresence() then
-            Dungeon.deferAutoStartWhileInside()
+            Dungeon.deferAutoStartWhileInside("active dungeon")
             return
         end
         if Dungeon.queueDeferredInside then
@@ -4648,23 +4776,32 @@ do
         local privacy    = Core.selectionState.dungeon_privacy or "Public"
         local dungeonType = Core.selectionState.dungeon_type or "Space"
         local difficulty  = Dungeon.DIFFICULTY_MAP[Core.selectionState.dungeon_difficulty or "Easy"] or 1
-        if Dungeon.isStartBlockedByPresence() then
-            Core.debugLog("Dungeon auto-start skipped: already inside dungeon")
-            Dungeon.deferAutoStartWhileInside()
+        if Dungeon.isRunProtectionActive() then
+            Dungeon.deferAutoStartWhileInside("run protection active")
             return
         end
-        Dungeon.queueHandled = true
+        if Dungeon.isStartBlockedByPresence() then
+            Core.debugLog("Dungeon auto-start skipped: already inside dungeon")
+            Dungeon.deferAutoStartWhileInside("active dungeon")
+            return
+        end
         Core.debugLog("Dungeon auto-start firing Create/Start", "type=", dungeonType, "difficulty=", difficulty, "privacy=", privacy)
         if Core.state.farm_egg then Core.debugLog("Refreshing incubator cache before dungeon start"); Dungeon.refreshIncubatorUi() end
         Core.setCurrentAction("Running Dungeon", 5)
         pcall(function() Core.UIActionRemote:FireServer("DungeonGroupAction","Create",privacy,dungeonType,difficulty) end)
         task.wait(0.2)
+        if Dungeon.isRunProtectionActive() then
+            Dungeon.deferAutoStartWhileInside("run protection active")
+            return
+        end
         if Dungeon.isStartBlockedByPresence() then
             Core.debugLog("Dungeon auto-start skipped: already inside dungeon")
             return
         end
         pcall(function() Core.UIActionRemote:FireServer("DungeonGroupAction","Start") end)
+        Dungeon.queueHandled = true
         Core.lockWorldTeleports(30)
+        Dungeon.markRunActive("auto-start")
         Core.debugLog("Dungeon create/start remotes fired")
     end
 
@@ -5277,6 +5414,8 @@ do
                                 task.wait(prompt.HoldDuration or 0)
                                 pcall(function() prompt:InputHoldEnd() end)
                             end
+                            Dungeon.markRunEnding("chest claimed")
+                            Dungeon.scheduleRunEnd(8, "chest claimed grace")
                         end
                     end
                 end
@@ -9953,10 +10092,28 @@ local Core = HS.Core
 
 Core.ClientNotifierRemote.OnClientEvent:Connect(function(eventName, rewards)
     if eventName == "DungeonReward" and typeof(rewards) == "table" then
+        local handledEggReward = false
+        if HS.Dungeon and HS.Dungeon.markRunEnding then
+            HS.Dungeon.markRunActive("reward received")
+            HS.Dungeon.markRunEnding("reward received")
+        end
         for _, reward in ipairs(rewards) do
             if typeof(reward) == "table" and reward.Type == "DungeonEgg" then
-                task.spawn(HS.Dungeon.handleEggReward, reward.Name or "Unknown Egg"); break
+                handledEggReward = true
+                task.spawn(function()
+                    local ok, err = pcall(HS.Dungeon.handleEggReward, reward.Name or "Unknown Egg")
+                    if not ok then
+                        Core.debugLog("Dungeon egg reward handler failed:", err)
+                    end
+                    if HS.Dungeon and HS.Dungeon.markRunEnded then
+                        HS.Dungeon.markRunEnded("egg reward handled")
+                    end
+                end)
+                break
             end
+        end
+        if not handledEggReward and HS.Dungeon and HS.Dungeon.scheduleRunEnd then
+            HS.Dungeon.scheduleRunEnd(5, "post reward grace")
         end
     elseif eventName == "PopupText" then
         local rewardsStr = tostring(rewards or "")
