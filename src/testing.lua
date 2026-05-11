@@ -2301,7 +2301,32 @@ do
         return nil
     end
 
+    function Farming.isDungeonStartBlockedByPresence()
+        local dungeon = HS.Dungeon
+        if not dungeon then return false end
+
+        if type(dungeon.isStartBlockedByPresence) == "function" then
+            local ok, blocked = pcall(dungeon.isStartBlockedByPresence)
+            if ok and blocked then return true end
+        end
+
+        if type(dungeon.isDungeonPresenceActive) == "function" then
+            local ok, active = pcall(dungeon.isDungeonPresenceActive)
+            if ok and active then return true end
+        end
+
+        if type(dungeon.isInsideActive) == "function" then
+            local ok, inside = pcall(dungeon.isInsideActive)
+            if ok and inside then return true end
+        end
+
+        return false
+    end
+
     function Farming.canStartClanDungeonQuest()
+        if Farming.isDungeonStartBlockedByPresence() then
+            return false, "active dungeon"
+        end
         if HS.Dungeon.updateAutoStartState and HS.Dungeon.updateAutoStartState() then
             return false, "active dungeon"
         end
@@ -2480,10 +2505,20 @@ do
             Core.releasePriority("clan_quests")
             return false
         end
+        if Farming.isDungeonStartBlockedByPresence() then
+            Core.debugLog("Clan dungeon quest start deferred: active dungeon")
+            Core.releasePriority("clan_quests")
+            return false
+        end
         if HS.Dungeon then HS.Dungeon.queueHandled = true end
         Core.setCurrentAction("Running Dungeon", 5)
         pcall(function() Core.UIActionRemote:FireServer("DungeonGroupAction", "Create", privacy, dungeonType, difficulty) end)
         task.wait(0.2)
+        if Farming.isDungeonStartBlockedByPresence() then
+            Core.debugLog("Clan dungeon quest start skipped: already inside dungeon")
+            Core.releasePriority("clan_quests")
+            return false
+        end
         pcall(function() Core.UIActionRemote:FireServer("DungeonGroupAction", "Start") end)
         Core.lockWorldTeleports(30)
         Core.releasePriority("clan_quests")
@@ -4287,6 +4322,7 @@ do
     Dungeon.timerCachedText         = "0:00"
     Dungeon.timerEndsAt             = nil
     Dungeon.queueHandled            = false
+    Dungeon.queueDeferredInside     = false
     Dungeon.wasInside               = false
     Dungeon.autoStartCooldownUntil  = 0
 
@@ -4457,6 +4493,37 @@ do
         return Dungeon.hasDungeonTargets()
     end
 
+    function Dungeon.isStartBlockedByPresence()
+        if type(Dungeon.isDungeonPresenceActive) == "function" then
+            local ok, active = pcall(Dungeon.isDungeonPresenceActive)
+            if ok and active then return true end
+        end
+
+        if type(Dungeon.isInsideActive) == "function" then
+            local ok, inside = pcall(Dungeon.isInsideActive)
+            if ok and inside then return true end
+        end
+
+        return false
+    end
+
+    function Dungeon.resetAutoStartDebounce(reason)
+        local hadDebounce = Dungeon.queueHandled or Dungeon.queueDeferredInside
+        Dungeon.queueHandled = false
+        Dungeon.queueDeferredInside = false
+        if hadDebounce then
+            Core.debugLog("Dungeon auto-start debounce reset", reason or "")
+        end
+    end
+
+    function Dungeon.deferAutoStartWhileInside()
+        if not Dungeon.queueDeferredInside then
+            Core.debugLog("Dungeon auto-start deferred while active dungeon")
+        end
+        Dungeon.queueDeferredInside = true
+        Dungeon.queueHandled = false
+    end
+
     function Dungeon.markEnded(reason)
         if not Dungeon.wasInside and not Core.dungeonActive then return end
 
@@ -4466,6 +4533,7 @@ do
         if Core.priorityOwner == "dungeon" then Core.priorityOwner = nil end
         Dungeon.wasInside = false
         Dungeon.forceEndedUntil = os.clock() + 10
+        Dungeon.resetAutoStartDebounce("dungeon ended")
         Core.clearCurrentAction("Running Dungeon")
         Core.clearCurrentAction("Farming Dungeon Enemies")
         Core.clearCurrentAction("Claiming Dungeon Chest")
@@ -4550,9 +4618,16 @@ do
 
     function Dungeon.tryAutoStart()
         local timerText = Dungeon.getEffectiveTimerText()
-        if timerText ~= "Queue Up" then Dungeon.queueHandled = false; return end
-        if not Core.state.start_dungeon or Dungeon.queueHandled then return end
-        if Dungeon.updateAutoStartState() then Core.debugLog("Auto-start blocked — still inside"); return end
+        if timerText ~= "Queue Up" then Dungeon.resetAutoStartDebounce("timer changed"); return end
+        if not Core.state.start_dungeon then return end
+        if Dungeon.updateAutoStartState() or Dungeon.isStartBlockedByPresence() then
+            Dungeon.deferAutoStartWhileInside()
+            return
+        end
+        if Dungeon.queueDeferredInside then
+            Dungeon.resetAutoStartDebounce("left dungeon")
+        end
+        if Dungeon.queueHandled then return end
         if os.clock() < Dungeon.autoStartCooldownUntil then
             Core.debugLog("Auto-start waiting for cooldown;", math.max(0, math.ceil(Dungeon.autoStartCooldownUntil - os.clock())), "seconds left")
             return
@@ -4560,12 +4635,21 @@ do
         local privacy    = Core.selectionState.dungeon_privacy or "Public"
         local dungeonType = Core.selectionState.dungeon_type or "Space"
         local difficulty  = Dungeon.DIFFICULTY_MAP[Core.selectionState.dungeon_difficulty or "Easy"] or 1
+        if Dungeon.isStartBlockedByPresence() then
+            Core.debugLog("Dungeon auto-start skipped: already inside dungeon")
+            Dungeon.deferAutoStartWhileInside()
+            return
+        end
         Dungeon.queueHandled = true
-        Core.debugLog("Queueing dungeon", "type=", dungeonType, "difficulty=", difficulty, "privacy=", privacy)
+        Core.debugLog("Dungeon auto-start firing Create/Start", "type=", dungeonType, "difficulty=", difficulty, "privacy=", privacy)
         if Core.state.farm_egg then Core.debugLog("Refreshing incubator cache before dungeon start"); Dungeon.refreshIncubatorUi() end
         Core.setCurrentAction("Running Dungeon", 5)
         pcall(function() Core.UIActionRemote:FireServer("DungeonGroupAction","Create",privacy,dungeonType,difficulty) end)
         task.wait(0.2)
+        if Dungeon.isStartBlockedByPresence() then
+            Core.debugLog("Dungeon auto-start skipped: already inside dungeon")
+            return
+        end
         pcall(function() Core.UIActionRemote:FireServer("DungeonGroupAction","Start") end)
         Core.lockWorldTeleports(30)
         Core.debugLog("Dungeon create/start remotes fired")
@@ -9518,7 +9602,7 @@ do
                 {type="toggle", key="start_dungeon", label="Auto Start Dungeon", showTimer=true,
                     callback=function(on)
                         if on then HS.Dungeon.startTimer(); HS.Dungeon.tryAutoStart()
-                        else HS.Dungeon.queueHandled = false end
+                        else HS.Dungeon.resetAutoStartDebounce("toggle disabled") end
                     end},
                 {type="selection", key="dungeon_type",       label="Dungeon Type", options={"Space"}, default="Space", instant=true},
                 {type="selection", key="dungeon_difficulty",  label="Difficulty",   options={"Easy","Medium","Hard","Impossible"}, default="Easy", instant=true},
