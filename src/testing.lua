@@ -4489,6 +4489,7 @@ do
     end
 
     function Dungeon.isDungeonPresenceActive()
+        if os.clock() < (Dungeon.forceEndedUntil or 0) then return false end
         if Dungeon.isInsideActive() then return true end
         return Dungeon.hasDungeonTargets()
     end
@@ -4524,6 +4525,17 @@ do
         Dungeon.queueHandled = false
     end
 
+    function Dungeon.retryDeferredAutoStart(delaySeconds)
+        Dungeon.autoStartRetryToken = (Dungeon.autoStartRetryToken or 0) + 1
+        local token = Dungeon.autoStartRetryToken
+        task.delay(delaySeconds or 0, function()
+            if not Core.alive or not Core.state.start_dungeon then return end
+            if Dungeon.autoStartRetryToken ~= token then return end
+            Dungeon.refreshTimerLabel()
+            Dungeon.tryAutoStart()
+        end)
+    end
+
     function Dungeon.markEnded(reason)
         if not Dungeon.wasInside and not Core.dungeonActive then return end
 
@@ -4534,6 +4546,7 @@ do
         Dungeon.wasInside = false
         Dungeon.forceEndedUntil = os.clock() + 10
         Dungeon.resetAutoStartDebounce("dungeon ended")
+        Dungeon.retryDeferredAutoStart((Core.DUNGEON_AUTOSTART_COOLDOWN or 3) + 0.25)
         Core.clearCurrentAction("Running Dungeon")
         Core.clearCurrentAction("Farming Dungeon Enemies")
         Core.clearCurrentAction("Claiming Dungeon Chest")
