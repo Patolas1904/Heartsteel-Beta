@@ -2525,7 +2525,7 @@ do
         end
         Core.setCurrentAction("Running Dungeon", 5)
         pcall(function() Core.UIActionRemote:FireServer("DungeonGroupAction", "Create", privacy, dungeonType, difficulty) end)
-        task.wait(0.2)
+        task.wait((HS.Dungeon and HS.Dungeon.START_REMOTE_DELAY) or 2)
         if Farming.isDungeonStartBlockedByPresence() then
             Core.debugLog("Clan dungeon quest start skipped: already inside dungeon")
             Core.releasePriority("clan_quests")
@@ -4369,6 +4369,7 @@ do
     Dungeon.chestThread = nil
     Dungeon.regionLoadedHookInstalled = false
     Dungeon.forceEndedUntil = 0
+    Dungeon.START_REMOTE_DELAY = 2
     Dungeon.RUN_PROTECTION_TIMEOUT = 20 * 60
     Dungeon.upgradeShopInfo = nil
     Dungeon.upgradeShopInfoLoaded = false
@@ -4789,7 +4790,7 @@ do
         if Core.state.farm_egg then Core.debugLog("Refreshing incubator cache before dungeon start"); Dungeon.refreshIncubatorUi() end
         Core.setCurrentAction("Running Dungeon", 5)
         pcall(function() Core.UIActionRemote:FireServer("DungeonGroupAction","Create",privacy,dungeonType,difficulty) end)
-        task.wait(0.2)
+        task.wait(Dungeon.START_REMOTE_DELAY or 2)
         if Dungeon.isRunProtectionActive() then
             Dungeon.deferAutoStartWhileInside("run protection active")
             return
