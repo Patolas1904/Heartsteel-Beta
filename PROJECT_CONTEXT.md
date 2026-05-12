@@ -30,17 +30,17 @@ The script is one large Luau file organized around a top-level `HS` table. Each 
 
 UI is declared in `HS.UI.UI_DATA`; rows are rendered by `UI.renderContent()` through row builders such as `UI.makeToggleRow`, `UI.makeSliderRow`, `UI.makeInputRow`, `UI.makeStatusRow`, etc.
 
-Last context sync: 2026-05-11, against active `testing.lua`, `healthcheck.lua`, and the private Health API GitHub repo.
+Last context sync: 2026-05-12, against active `testing.lua`, `healthcheck.lua`, and the private Health API GitHub repo.
 
 Recent synced changes:
 
 - Health check now uses a public executor-side probe that sends safe runtime facts to the Render API. Private pass/warn/fail scoring must stay server-side in `scorer.js`.
 - Health check now emits compact Petdex event egg facts under `checks.petdexEventEggs`; the private scorer consumes those facts server-side.
-- Health API repo `Patolas1904/heartsteel-health-api` was updated through the GitHub connector. Commit `d093c9debd8d8720dd5bd8c0a17f6a5394f1e158` on `main` scores dungeon watchdog, teleport-protection, and dungeon target fallback presence facts.
+- Health API repo `Patolas1904/heartsteel-health-api` was updated through the GitHub connector. Commit `7918e79d3012491d8f372a3596dd77a91a8f41e8` on `main` scores dungeon watchdog, teleport-protection, dungeon target fallback presence facts, persistent dungeon run-protection facts, and the 2-second dungeon start delay.
 - Health API repo commit `1f732de004c98d0c684f1fa4708461e5cfc23b30` on `main` scores the Petdex event egg safe facts.
 - Petdex reward egg completion now includes event/limited eggs detected from `PetsInfo.Eggs - PetShopInfo`, while Auto Petdex farming remains limited to shop/current eggs.
-- Dungeon teleport protection now uses `Dungeon.isDungeonPresenceActive()`, which preserves `Dungeon.isInsideActive()` and adds a conservative `Dungeon.hasDungeonTargets()` fallback under `workspace.DungeonStorage`.
-- Health check now emits safe facts for `Dungeon.hasDungeonTargets`, `Dungeon.isDungeonPresenceActive`, `Dungeon.refreshPresenceLock`, `Dungeon.VALID_SPAWNERS`, `Dungeon.VALID_TARGETS`, and a controlled `presenceFallbackProbe`.
+- Dungeon teleport protection now uses persistent runtime state (`Dungeon.runProtectionActive`) once dungeon presence/bots are detected, so world teleports remain blocked between bot waves until a reward/chest/lobby/end signal or the long timeout releases protection.
+- Health check now emits safe facts for `Dungeon.hasDungeonTargets`, `Dungeon.isDungeonPresenceActive`, run-protection helpers, `Dungeon.refreshPresenceLock`, `Dungeon.VALID_SPAWNERS`, `Dungeon.VALID_TARGETS`, `Dungeon.START_REMOTE_DELAY`, `Dungeon.RUN_PROTECTION_TIMEOUT`, controlled `presenceFallbackProbe`, and controlled `runProtectionProbe`.
 - Session restore in `testing.lua` now broadly restores saved runtime keys, including dynamic merchant filters and log/Discord monitor toggles. `KILL` suppresses all session saves during shutdown so it cannot overwrite or reset the saved session.
 
 ## Health Check
@@ -107,7 +107,7 @@ Latest known server-side scorer update:
 
 - Commit: `1f732de004c98d0c684f1fa4708461e5cfc23b30`
 - Branch: `main`
-- Purpose: score safe probe facts for `Core.lockWorldTeleports`, `Core.isWorldTeleportBlocked`, `checks.core.loopHealth.dungeon_presence_watchdog`, `checks.dungeon.teleportProtection.ok/stateRestored`, the dungeon target fallback presence probe, and compact `checks.petdexEventEggs` diagnostics.
+- Purpose: score safe probe facts for `Core.lockWorldTeleports`, `Core.isWorldTeleportBlocked`, `checks.core.loopHealth.dungeon_presence_watchdog`, `checks.dungeon.teleportProtection.ok/stateRestored`, the dungeon target fallback presence probe, persistent dungeon run-protection probe, 2-second start remote delay, 20-minute run-protection timeout, and compact `checks.petdexEventEggs` diagnostics.
 
 Rules for future work:
 
@@ -420,17 +420,24 @@ Dungeon timer:
 Core.UIActionRemote:FireServer("DungeonGroupAction", "Create", privacy, dungeonType, difficulty)
 Core.UIActionRemote:FireServer("DungeonGroupAction", "Start")
 ```
+- `Dungeon.START_REMOTE_DELAY = 2`; wait this long between `DungeonGroupAction, "Create"` and `"Start"` so the group settles before force-starting.
+- Before Create/Start, auto-start must defer if `Dungeon.isRunProtectionActive()`, `Dungeon.isDungeonPresenceActive()`, or `Dungeon.isInsideActive()` reports active/protected dungeon state. Skipping due to active protection must not consume `Dungeon.queueHandled`.
 
 Dungeon active state:
 
 - `Dungeon.isInsideActive()` checks `workspace.DungeonStorage`.
 - `Dungeon.hasDungeonTargets()` is a conservative fallback that only looks under `workspace.DungeonStorage` for `Important` children matching `Dungeon.VALID_SPAWNERS` and live models matching `Dungeon.VALID_TARGETS`.
 - `Dungeon.isDungeonPresenceActive()` is the stronger shared presence helper: `Dungeon.isInsideActive()` OR `Dungeon.hasDungeonTargets()`.
-- `Dungeon.refreshPresenceLock()` uses `Dungeon.isDungeonPresenceActive()` before calling `Dungeon.updateAutoStartState()`.
+- `Dungeon.markRunActive(reason)` sets persistent dungeon run protection, refreshes `Core.lockWorldTeleports(3)`, and records activity.
+- `Dungeon.isRunProtectionActive()` is the persistent protection helper. It remains true between waves and includes a conservative timeout via `Dungeon.RUN_PROTECTION_TIMEOUT = 20 * 60`.
+- `Dungeon.markRunEnding(reason)` keeps protection during reward/chest handling while noting that the run is ending.
+- `Dungeon.markRunEnded(reason)` releases run protection, clears the dungeon priority lock, resets auto-start debounce, and schedules the guarded deferred auto-start retry.
+- `Dungeon.refreshPresenceLock()` uses `Dungeon.isDungeonPresenceActive()` and `Dungeon.isRunProtectionActive()` before/after calling `Dungeon.updateAutoStartState()`.
 - `Core.lockWorldTeleports(seconds)` blocks world teleports while dungeon is active.
-- A namecall hook watches `SetRegionLoaded, "Dungeon Lobby"` to mark dungeon ended.
+- `Core.isWorldTeleportBlocked()` must read `Dungeon.isRunProtectionActive()` before falling back to current dungeon presence.
+- A namecall hook watches `SetRegionLoaded, "Dungeon Lobby"` to mark dungeon ended, but holds protection if `Dungeon.eggRewardPending` is still being handled.
 - `Dungeon.startPresenceWatchdog()` starts one duplicate-safe loop with key `dungeon_presence_watchdog`.
-- The watchdog calls `Dungeon.refreshPresenceLock()` immediately at startup, then about every 1 second, and refreshes `Core.lockWorldTeleports(3)` while `Dungeon.isDungeonPresenceActive()` is true.
+- The watchdog calls `Dungeon.refreshPresenceLock()` immediately at startup, then about every 1 second, and refreshes `Core.lockWorldTeleports(3)` while current presence or persistent run protection is active.
 - Startup calls `HS.Dungeon.installRegionLoadedHook()` and `HS.Dungeon.startPresenceWatchdog()` before restored toggle callbacks, independently of the `start_dungeon` toggle, so reload/rejoin while already inside a dungeon still blocks world teleports.
 - When the player is not inside an active dungeon, the watchdog does nothing and should not permanently lock teleports.
 
@@ -925,7 +932,7 @@ Simulate Movement behavior:
 
 `Core.ClientNotifierRemote.OnClientEvent` handles:
 
-- `DungeonReward`: if reward type is `DungeonEgg`, starts `HS.Dungeon.handleEggReward`.
+- `DungeonReward`: marks dungeon run protection as ending, keeps protection through reward handling, and if reward type is `DungeonEgg`, runs `HS.Dungeon.handleEggReward`; protection is released after egg handling completes, or after a short grace if no dungeon egg reward handler runs.
 - `PopupText`: if text contains `Clan XP`, refreshes clan quest info.
 
 ## Startup
