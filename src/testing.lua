@@ -8740,7 +8740,7 @@ do
     end)
 
     StandaloneScripts.add("Health Check", function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/Patolas1904/Heartsteel-Beta/dev/src/healthcheck.lua"))()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Patolas1904/Heartsteel-Beta/main/src/healthcheck.lua"))()
     end)
 
     function StandaloneScripts.run(script)
