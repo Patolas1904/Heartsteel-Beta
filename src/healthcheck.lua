@@ -554,6 +554,7 @@ local function controlledDungeonPresenceFallbackProbe(core, dungeon)
         refreshCallOk = false,
         refreshReturnedTrue = false,
         lockRefreshedByFallback = false,
+        runProtectionActiveAfterRefresh = false,
         prioritySetToDungeon = false,
         stateRestored = false,
         functionsRestored = false,
@@ -572,6 +573,13 @@ local function controlledDungeonPresenceFallbackProbe(core, dungeon)
     local oldUpdateAutoStartState = safeRead(dungeon, "updateAutoStartState")
     local oldWasInside = safeRead(dungeon, "wasInside")
     local oldForceEndedUntil = safeRead(dungeon, "forceEndedUntil")
+    local oldRunActive = safeRead(dungeon, "runActive")
+    local oldRunProtectionActive = safeRead(dungeon, "runProtectionActive")
+    local oldLastDungeonActivityAt = safeRead(dungeon, "lastDungeonActivityAt")
+    local oldRunProtectionStartedAt = safeRead(dungeon, "runProtectionStartedAt")
+    local oldRunProtectionHeldLogged = safeRead(dungeon, "runProtectionHeldLogged")
+    local oldRunEnding = safeRead(dungeon, "runEnding")
+    local oldRunEndToken = safeRead(dungeon, "runEndToken")
 
     local oldDungeonActive = safeRead(core, "dungeonActive")
     local oldDungeonTeleportLockUntil = safeRead(core, "dungeonTeleportLockUntil")
@@ -583,6 +591,13 @@ local function controlledDungeonPresenceFallbackProbe(core, dungeon)
         rawset(dungeon, "updateAutoStartState", oldUpdateAutoStartState)
         rawset(dungeon, "wasInside", oldWasInside)
         rawset(dungeon, "forceEndedUntil", oldForceEndedUntil)
+        rawset(dungeon, "runActive", oldRunActive)
+        rawset(dungeon, "runProtectionActive", oldRunProtectionActive)
+        rawset(dungeon, "lastDungeonActivityAt", oldLastDungeonActivityAt)
+        rawset(dungeon, "runProtectionStartedAt", oldRunProtectionStartedAt)
+        rawset(dungeon, "runProtectionHeldLogged", oldRunProtectionHeldLogged)
+        rawset(dungeon, "runEnding", oldRunEnding)
+        rawset(dungeon, "runEndToken", oldRunEndToken)
 
         rawset(core, "dungeonActive", oldDungeonActive)
         rawset(core, "dungeonTeleportLockUntil", oldDungeonTeleportLockUntil)
@@ -597,6 +612,13 @@ local function controlledDungeonPresenceFallbackProbe(core, dungeon)
             safeRead(core, "dungeonActive") == oldDungeonActive
             and safeRead(core, "dungeonTeleportLockUntil") == oldDungeonTeleportLockUntil
             and safeRead(core, "priorityOwner") == oldPriorityOwner
+            and safeRead(dungeon, "runActive") == oldRunActive
+            and safeRead(dungeon, "runProtectionActive") == oldRunProtectionActive
+            and safeRead(dungeon, "lastDungeonActivityAt") == oldLastDungeonActivityAt
+            and safeRead(dungeon, "runProtectionStartedAt") == oldRunProtectionStartedAt
+            and safeRead(dungeon, "runProtectionHeldLogged") == oldRunProtectionHeldLogged
+            and safeRead(dungeon, "runEnding") == oldRunEnding
+            and safeRead(dungeon, "runEndToken") == oldRunEndToken
     end
 
     result.ran = true
@@ -612,6 +634,13 @@ local function controlledDungeonPresenceFallbackProbe(core, dungeon)
     end)
     rawset(dungeon, "wasInside", false)
     rawset(dungeon, "forceEndedUntil", 0)
+    rawset(dungeon, "runActive", false)
+    rawset(dungeon, "runProtectionActive", false)
+    rawset(dungeon, "lastDungeonActivityAt", 0)
+    rawset(dungeon, "runProtectionStartedAt", 0)
+    rawset(dungeon, "runProtectionHeldLogged", false)
+    rawset(dungeon, "runEnding", false)
+    rawset(dungeon, "runEndToken", 0)
 
     rawset(core, "dungeonActive", false)
     rawset(core, "dungeonTeleportLockUntil", 0)
@@ -627,6 +656,7 @@ local function controlledDungeonPresenceFallbackProbe(core, dungeon)
 
     local lockUntil = tonumber(safeRead(core, "dungeonTeleportLockUntil"))
     result.lockRefreshedByFallback = lockUntil ~= nil and lockUntil > os.clock()
+    result.runProtectionActiveAfterRefresh = safeRead(dungeon, "runProtectionActive") == true
     result.prioritySetToDungeon = safeRead(core, "priorityOwner") == "dungeon"
 
     if not presenceOk then
@@ -641,7 +671,207 @@ local function controlledDungeonPresenceFallbackProbe(core, dungeon)
         and result.refreshCallOk
         and result.refreshReturnedTrue
         and result.lockRefreshedByFallback
+        and result.runProtectionActiveAfterRefresh
         and result.prioritySetToDungeon
+
+    restore()
+    result.ok = probeOk and result.stateRestored and result.functionsRestored
+    return result
+end
+
+local function controlledDungeonRunProtectionProbe(core, dungeon)
+    local markRunActive = safeRead(dungeon, "markRunActive")
+    local markRunEnded = safeRead(dungeon, "markRunEnded")
+    local isRunProtectionActive = safeRead(dungeon, "isRunProtectionActive")
+    local refreshPresenceLock = safeRead(dungeon, "refreshPresenceLock")
+    local isWorldTeleportBlocked = safeRead(core, "isWorldTeleportBlocked")
+
+    local result = {
+        ran = false,
+        ok = false,
+        markRunActive = type(markRunActive) == "function",
+        markRunEnded = type(markRunEnded) == "function",
+        isRunProtectionActive = type(isRunProtectionActive) == "function",
+        refreshPresenceLock = type(refreshPresenceLock) == "function",
+        isWorldTeleportBlocked = type(isWorldTeleportBlocked) == "function",
+        markActiveCallOk = false,
+        protectedAfterMark = false,
+        blockedByProtection = false,
+        refreshCallOk = false,
+        refreshHeldProtection = false,
+        prioritySetToDungeon = false,
+        markEndedCallOk = false,
+        releasedAfterEnd = false,
+        stateRestored = false,
+        functionsRestored = false,
+        error = nil,
+    }
+
+    if type(markRunActive) ~= "function"
+        or type(markRunEnded) ~= "function"
+        or type(isRunProtectionActive) ~= "function"
+        or type(refreshPresenceLock) ~= "function"
+        or type(isWorldTeleportBlocked) ~= "function" then
+        result.error = "missing dungeon run protection function"
+        return result
+    end
+
+    local oldIsInsideActive = safeRead(dungeon, "isInsideActive")
+    local oldHasDungeonTargets = safeRead(dungeon, "hasDungeonTargets")
+    local oldUpdateAutoStartState = safeRead(dungeon, "updateAutoStartState")
+    local oldWasInside = safeRead(dungeon, "wasInside")
+    local oldForceEndedUntil = safeRead(dungeon, "forceEndedUntil")
+    local oldRunActive = safeRead(dungeon, "runActive")
+    local oldRunProtectionActive = safeRead(dungeon, "runProtectionActive")
+    local oldLastDungeonActivityAt = safeRead(dungeon, "lastDungeonActivityAt")
+    local oldRunProtectionStartedAt = safeRead(dungeon, "runProtectionStartedAt")
+    local oldRunProtectionHeldLogged = safeRead(dungeon, "runProtectionHeldLogged")
+    local oldRunEnding = safeRead(dungeon, "runEnding")
+    local oldRunEndToken = safeRead(dungeon, "runEndToken")
+    local oldAutoStartCooldownUntil = safeRead(dungeon, "autoStartCooldownUntil")
+    local oldAutoStartRetryToken = safeRead(dungeon, "autoStartRetryToken")
+
+    local oldDungeonActive = safeRead(core, "dungeonActive")
+    local oldDungeonTeleportLockUntil = safeRead(core, "dungeonTeleportLockUntil")
+    local oldPriorityOwner = safeRead(core, "priorityOwner")
+    local coreState = safeRead(core, "state")
+    local oldAutoCycleState = type(coreState) == "table" and rawget(coreState, "auto_cycle") or nil
+
+    local function restore()
+        rawset(dungeon, "isInsideActive", oldIsInsideActive)
+        rawset(dungeon, "hasDungeonTargets", oldHasDungeonTargets)
+        rawset(dungeon, "updateAutoStartState", oldUpdateAutoStartState)
+        rawset(dungeon, "wasInside", oldWasInside)
+        rawset(dungeon, "forceEndedUntil", oldForceEndedUntil)
+        rawset(dungeon, "runActive", oldRunActive)
+        rawset(dungeon, "runProtectionActive", oldRunProtectionActive)
+        rawset(dungeon, "lastDungeonActivityAt", oldLastDungeonActivityAt)
+        rawset(dungeon, "runProtectionStartedAt", oldRunProtectionStartedAt)
+        rawset(dungeon, "runProtectionHeldLogged", oldRunProtectionHeldLogged)
+        rawset(dungeon, "runEnding", oldRunEnding)
+        rawset(dungeon, "runEndToken", oldRunEndToken)
+        rawset(dungeon, "autoStartCooldownUntil", oldAutoStartCooldownUntil)
+        rawset(dungeon, "autoStartRetryToken", oldAutoStartRetryToken)
+
+        rawset(core, "dungeonActive", oldDungeonActive)
+        rawset(core, "dungeonTeleportLockUntil", oldDungeonTeleportLockUntil)
+        rawset(core, "priorityOwner", oldPriorityOwner)
+        if type(coreState) == "table" then
+            rawset(coreState, "auto_cycle", oldAutoCycleState)
+        end
+
+        result.functionsRestored =
+            safeRead(dungeon, "isInsideActive") == oldIsInsideActive
+            and safeRead(dungeon, "hasDungeonTargets") == oldHasDungeonTargets
+            and safeRead(dungeon, "updateAutoStartState") == oldUpdateAutoStartState
+
+        result.stateRestored =
+            safeRead(core, "dungeonActive") == oldDungeonActive
+            and safeRead(core, "dungeonTeleportLockUntil") == oldDungeonTeleportLockUntil
+            and safeRead(core, "priorityOwner") == oldPriorityOwner
+            and safeRead(dungeon, "wasInside") == oldWasInside
+            and safeRead(dungeon, "forceEndedUntil") == oldForceEndedUntil
+            and safeRead(dungeon, "runActive") == oldRunActive
+            and safeRead(dungeon, "runProtectionActive") == oldRunProtectionActive
+            and safeRead(dungeon, "lastDungeonActivityAt") == oldLastDungeonActivityAt
+            and safeRead(dungeon, "runProtectionStartedAt") == oldRunProtectionStartedAt
+            and safeRead(dungeon, "runProtectionHeldLogged") == oldRunProtectionHeldLogged
+            and safeRead(dungeon, "runEnding") == oldRunEnding
+            and safeRead(dungeon, "runEndToken") == oldRunEndToken
+            and safeRead(dungeon, "autoStartCooldownUntil") == oldAutoStartCooldownUntil
+            and safeRead(dungeon, "autoStartRetryToken") == oldAutoStartRetryToken
+            and (type(coreState) ~= "table" or rawget(coreState, "auto_cycle") == oldAutoCycleState)
+    end
+
+    result.ran = true
+
+    rawset(dungeon, "isInsideActive", function()
+        return false
+    end)
+    rawset(dungeon, "hasDungeonTargets", function()
+        return false
+    end)
+    rawset(dungeon, "updateAutoStartState", function()
+        return false
+    end)
+    rawset(dungeon, "wasInside", false)
+    rawset(dungeon, "forceEndedUntil", 0)
+    rawset(dungeon, "runActive", false)
+    rawset(dungeon, "runProtectionActive", false)
+    rawset(dungeon, "lastDungeonActivityAt", 0)
+    rawset(dungeon, "runProtectionStartedAt", 0)
+    rawset(dungeon, "runProtectionHeldLogged", false)
+    rawset(dungeon, "runEnding", false)
+    rawset(dungeon, "runEndToken", 0)
+    rawset(dungeon, "autoStartCooldownUntil", 0)
+    rawset(dungeon, "autoStartRetryToken", 0)
+
+    rawset(core, "dungeonActive", false)
+    rawset(core, "dungeonTeleportLockUntil", 0)
+    rawset(core, "priorityOwner", nil)
+    if type(coreState) == "table" then
+        rawset(coreState, "auto_cycle", false)
+    end
+
+    local markActiveOk, markActiveErr = pcall(markRunActive, "health probe")
+    result.markActiveCallOk = markActiveOk
+    if not markActiveOk then
+        result.error = tostring(markActiveErr)
+        restore()
+        return result
+    end
+
+    local protectedOk, protected = pcall(isRunProtectionActive)
+    result.protectedAfterMark = protectedOk and protected == true
+
+    rawset(core, "dungeonActive", false)
+    rawset(core, "dungeonTeleportLockUntil", 0)
+    rawset(core, "priorityOwner", nil)
+
+    local blockedOk, blocked = pcall(isWorldTeleportBlocked)
+    result.blockedByProtection = blockedOk and blocked == true
+    result.prioritySetToDungeon = safeRead(core, "priorityOwner") == "dungeon"
+
+    rawset(core, "dungeonActive", false)
+    rawset(core, "dungeonTeleportLockUntil", 0)
+    rawset(core, "priorityOwner", nil)
+
+    local refreshOk, refreshResult = pcall(refreshPresenceLock)
+    result.refreshCallOk = refreshOk
+    result.refreshHeldProtection = refreshOk
+        and refreshResult == true
+        and safeRead(dungeon, "runProtectionActive") == true
+        and tonumber(safeRead(core, "dungeonTeleportLockUntil")) ~= nil
+        and tonumber(safeRead(core, "dungeonTeleportLockUntil")) > os.clock()
+
+    local markEndedOk, markEndedErr = pcall(markRunEnded, "health probe")
+    result.markEndedCallOk = markEndedOk
+    if not markEndedOk then
+        result.error = tostring(markEndedErr)
+        restore()
+        return result
+    end
+
+    local releasedOk, released = pcall(isRunProtectionActive)
+    result.releasedAfterEnd = releasedOk and released == false and safeRead(dungeon, "runProtectionActive") == false
+
+    if not protectedOk then
+        result.error = tostring(protected)
+    elseif not blockedOk then
+        result.error = tostring(blocked)
+    elseif not refreshOk then
+        result.error = tostring(refreshResult)
+    end
+
+    local probeOk =
+        result.markActiveCallOk
+        and result.protectedAfterMark
+        and result.blockedByProtection
+        and result.refreshCallOk
+        and result.refreshHeldProtection
+        and result.prioritySetToDungeon
+        and result.markEndedCallOk
+        and result.releasedAfterEnd
 
     restore()
     result.ok = probeOk and result.stateRestored and result.functionsRestored
@@ -731,6 +961,7 @@ local Dungeon = HS and getPath(HS, { "Dungeon" }) or nil
 local dungeonIsInsideActive = HS and getPath(HS, { "Dungeon", "isInsideActive" }) or nil
 local dungeonHasDungeonTargets = HS and getPath(HS, { "Dungeon", "hasDungeonTargets" }) or nil
 local dungeonIsDungeonPresenceActive = HS and getPath(HS, { "Dungeon", "isDungeonPresenceActive" }) or nil
+local dungeonIsRunProtectionActive = HS and getPath(HS, { "Dungeon", "isRunProtectionActive" }) or nil
 
 local payload = {
     schema = 1,
@@ -845,6 +1076,11 @@ local payload = {
             isInsideActive = HS and isFunction(HS, { "Dungeon", "isInsideActive" }) or false,
             hasDungeonTargets = HS and isFunction(HS, { "Dungeon", "hasDungeonTargets" }) or false,
             isDungeonPresenceActive = HS and isFunction(HS, { "Dungeon", "isDungeonPresenceActive" }) or false,
+            markRunActive = HS and isFunction(HS, { "Dungeon", "markRunActive" }) or false,
+            markRunEnding = HS and isFunction(HS, { "Dungeon", "markRunEnding" }) or false,
+            markRunEnded = HS and isFunction(HS, { "Dungeon", "markRunEnded" }) or false,
+            isRunProtectionActive = HS and isFunction(HS, { "Dungeon", "isRunProtectionActive" }) or false,
+            scheduleRunEnd = HS and isFunction(HS, { "Dungeon", "scheduleRunEnd" }) or false,
             refreshPresenceLock = HS and isFunction(HS, { "Dungeon", "refreshPresenceLock" }) or false,
             startPresenceWatchdog = HS and isFunction(HS, { "Dungeon", "startPresenceWatchdog" }) or false,
             tryClaimEggs = HS and isFunction(HS, { "Dungeon", "tryClaimEggs" }) or false,
@@ -854,8 +1090,13 @@ local payload = {
 
             maxIncubatorSlots = HS and getPath(HS, { "Dungeon", "MAX_INCUBATOR_SLOTS" }) or nil,
             forceClaimInterval = HS and getPath(HS, { "Dungeon", "FORCE_CLAIM_INTERVAL" }) or nil,
+            startRemoteDelay = HS and getPath(HS, { "Dungeon", "START_REMOTE_DELAY" }) or nil,
+            runProtectionTimeout = HS and getPath(HS, { "Dungeon", "RUN_PROTECTION_TIMEOUT" }) or nil,
+            runProtectionActive = HS and getPath(HS, { "Dungeon", "runProtectionActive" }) == true or false,
+            runActive = HS and getPath(HS, { "Dungeon", "runActive" }) == true or false,
             teleportProtection = Core and controlledTeleportLockProbe(Core) or nil,
             presenceFallbackProbe = Core and Dungeon and controlledDungeonPresenceFallbackProbe(Core, Dungeon) or nil,
+            runProtectionProbe = Core and Dungeon and controlledDungeonRunProtectionProbe(Core, Dungeon) or nil,
         },
 
         logs = {
@@ -911,6 +1152,12 @@ local payload = {
             error = "safe calls disabled",
         },
         dungeonIsDungeonPresenceActive = RUN_SAFE_CALL_TESTS and safeCall(dungeonIsDungeonPresenceActive) or {
+            ran = false,
+            ok = false,
+            result = nil,
+            error = "safe calls disabled",
+        },
+        dungeonIsRunProtectionActive = RUN_SAFE_CALL_TESTS and safeCall(dungeonIsRunProtectionActive) or {
             ran = false,
             ok = false,
             result = nil,
