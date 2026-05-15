@@ -7,19 +7,17 @@ MODULES = ROOT / "src" / "modules"
 DIST = ROOT / "dist"
 OUTPUT = DIST / "heartsteel.lua"
 
-MODULE_NAME = "Flags"
-START_MARKER = f"-- HEARTSTEEL_MODULE_START: {MODULE_NAME}"
-END_MARKER = f"-- HEARTSTEEL_MODULE_END: {MODULE_NAME}"
+MODULE_NAMES = ("Flags", "MiscConfig")
 
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def extract_installer_body(module_text: str) -> str:
+def extract_installer_body(module_name: str, module_text: str) -> str:
     lines = module_text.splitlines()
     if not lines or lines[0] != "return function(HS, S)":
-        raise ValueError("Flags.lua must start with: return function(HS, S)")
+        raise ValueError(f"{module_name}.lua must start with: return function(HS, S)")
 
     body_lines = lines[1:]
 
@@ -27,7 +25,7 @@ def extract_installer_body(module_text: str) -> str:
         body_lines.pop()
 
     if not body_lines or body_lines[-1].strip() != "end":
-        raise ValueError("Flags.lua must end with final: end")
+        raise ValueError(f"{module_name}.lua must end with final: end")
 
     body_lines = body_lines[:-1]
 
@@ -70,13 +68,14 @@ def main() -> None:
     DIST.mkdir(exist_ok=True)
 
     entry_text = read_text(ENTRY)
-    flags_text = read_text(MODULES / "Flags.lua")
-
-    flags_body = extract_installer_body(flags_text)
-    output_text = replace_module(entry_text, MODULE_NAME, flags_body)
+    output_text = entry_text
+    for module_name in MODULE_NAMES:
+        module_text = read_text(MODULES / f"{module_name}.lua")
+        module_body = extract_installer_body(module_name, module_text)
+        output_text = replace_module(output_text, module_name, module_body)
 
     OUTPUT.write_text(output_text, encoding="utf-8")
-    print(f"Bundled {ENTRY} + src/modules/Flags.lua -> {OUTPUT}")
+    print(f"Bundled {ENTRY} + {len(MODULE_NAMES)} modules -> {OUTPUT}")
 
 
 if __name__ == "__main__":

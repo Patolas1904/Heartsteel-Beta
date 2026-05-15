@@ -1028,14 +1028,21 @@ do
         Core.debugLog("Move speed OFF - restored to", Misc.originalMoveSpeed or "unchanged")
         Misc.originalMoveSpeed = nil
     end
+-- HEARTSTEEL_MODULE_START: MiscConfig
+do
+    local Misc = HS.Misc
+
     Misc.ANTI_AFK_DELAY     = 20
     Misc.SIM_MOVE_DELAY     = 20
     Misc.SIM_MOVE_DISTANCE  = 1.5
     Misc.SIM_MOVE_WAIT      = 0.12
-    Misc.eggAnimMovedToStorage   = false
-    Misc.eggAnimChildAddedConn   = nil
 
     Misc.ELEMENT_OPTIONS = {"Fire","Water","Earth","Plasma"}
+end
+-- HEARTSTEEL_MODULE_END: MiscConfig
+
+    Misc.eggAnimMovedToStorage   = false
+    Misc.eggAnimChildAddedConn   = nil
 
     -- ── Element ─────────────────────────────────────────────────
     function Misc.applyElement(selectedValue)
