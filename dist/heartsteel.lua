@@ -7119,6 +7119,8 @@ do
 end
 
 -- LOGS - dungeon egg timer display
+-- HEARTSTEEL_MODULE_START: LogsDungeon
+-- Bundled from src/modules/LogsDungeon.lua
 do
     HS.Logs = HS.Logs or {}
     HS.Logs.Dungeon = HS.Logs.Dungeon or {}
@@ -7310,6 +7312,7 @@ do
         end
     end
 end
+-- HEARTSTEEL_MODULE_END: LogsDungeon
 
 -- LOGS - pet hatch Discord webhook
 do
