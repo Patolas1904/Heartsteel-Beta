@@ -17,6 +17,7 @@ MODULE_NAMES = (
     "MiscSimMovement",
     "MiscEggAnimations",
     "Pets",
+    "PetdexRewards",
 )
 
 

@@ -6156,8 +6156,12 @@ end
 -- HEARTSTEEL_MODULE_END: Pets
 
 -- PETDEX REWARDS - auto-claim unlocked pet count milestones
+-- HEARTSTEEL_MODULE_START: PetdexRewards
+-- Bundled from src/modules/PetdexRewards.lua
 do
-    local Rewards = HS.PetdexRewards
+    local Rewards = HS.PetdexRewards or {}
+    HS.PetdexRewards = Rewards
+
     local Core    = HS.Core
 
     Rewards.STATE_KEY   = "auto_petdex_rewards"
@@ -6528,6 +6532,7 @@ do
         end)
     end
 end
+-- HEARTSTEEL_MODULE_END: PetdexRewards
 
 -- EGG OPENER - selected page/slot auto hatch
 do

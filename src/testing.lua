@@ -6130,6 +6130,7 @@ end
 -- HEARTSTEEL_MODULE_END: Pets
 
 -- PETDEX REWARDS - auto-claim unlocked pet count milestones
+-- HEARTSTEEL_MODULE_START: PetdexRewards
 do
     local Rewards = HS.PetdexRewards
     local Core    = HS.Core
@@ -6502,6 +6503,7 @@ do
         end)
     end
 end
+-- HEARTSTEEL_MODULE_END: PetdexRewards
 
 -- EGG OPENER - selected page/slot auto hatch
 do
