@@ -959,11 +959,8 @@ do
     local Core   = HS.Core
 
 -- HEARTSTEEL_MODULE_START: MiscSpeed
--- Bundled from src/modules/MiscSpeed.lua
 do
-    local Misc = HS.Misc or {}
-    HS.Misc = Misc
-
+    local Misc = HS.Misc
     local Core = HS.Core
 
     Misc.moveSpeed          = 16
@@ -1038,10 +1035,8 @@ do
 end
 -- HEARTSTEEL_MODULE_END: MiscSpeed
 -- HEARTSTEEL_MODULE_START: MiscConfig
--- Bundled from src/modules/MiscConfig.lua
 do
-    local Misc = HS.Misc or {}
-    HS.Misc = Misc
+    local Misc = HS.Misc
 
     Misc.ANTI_AFK_DELAY     = 20
     Misc.SIM_MOVE_DELAY     = 20
@@ -1059,11 +1054,8 @@ end
 
     -- ── Position helpers ─────────────────────────────────────────
 -- HEARTSTEEL_MODULE_START: MiscPosition
--- Bundled from src/modules/MiscPosition.lua
 do
-    local Misc = HS.Misc or {}
-    HS.Misc = Misc
-
+    local Misc = HS.Misc
     local Core = HS.Core
 
     function Misc.saveCurrentPosition()
@@ -1171,11 +1163,8 @@ end
 
     -- ── Egg animation hide/show ──────────────────────────────────
 -- HEARTSTEEL_MODULE_START: MiscEggAnimations
--- Bundled from src/modules/MiscEggAnimations.lua
 do
-    local Misc = HS.Misc or {}
-    HS.Misc = Misc
-
+    local Misc = HS.Misc
     local Core = HS.Core
 
     Misc.eggAnimMovedToStorage   = false
@@ -4011,12 +4000,9 @@ end
 -- FLAGS — flag capture subsystem
 -- ══════════════════════════════════════════════════════════════════
 -- HEARTSTEEL_MODULE_START: Flags
--- Bundled from src/modules/Flags.lua
 do
-    local Flags = HS.Flags or {}
-    HS.Flags = Flags
-
-    local Core = HS.Core
+    local Flags = HS.Flags
+    local Core  = HS.Core
 
     Flags.debugCircles = {}
     Flags.captureConnection = nil

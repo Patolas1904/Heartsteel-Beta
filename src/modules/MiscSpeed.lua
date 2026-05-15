@@ -9,7 +9,6 @@ return function(HS, S)
     Misc.moveSpeedConn      = nil
     Misc.moveSpeedCharConn  = nil
 
-    -- ── Speed ───────────────────────────────────────────────────
     function Misc.getHumanoid()
         local char = Core.player.Character
         if not char then return nil end

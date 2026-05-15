@@ -968,7 +968,6 @@ do
     Misc.moveSpeedConn      = nil
     Misc.moveSpeedCharConn  = nil
 
-    -- ── Speed ───────────────────────────────────────────────────
     function Misc.getHumanoid()
         local char = Core.player.Character
         if not char then return nil end
@@ -1047,9 +1046,6 @@ do
     Misc.ELEMENT_OPTIONS = {"Fire","Water","Earth","Plasma"}
 end
 -- HEARTSTEEL_MODULE_END: MiscConfig
-
-    Misc.eggAnimMovedToStorage   = false
-    Misc.eggAnimChildAddedConn   = nil
 
     -- ── Element ─────────────────────────────────────────────────
     function Misc.applyElement(selectedValue)
@@ -1166,6 +1162,14 @@ end
     end
 
     -- ── Egg animation hide/show ──────────────────────────────────
+-- HEARTSTEEL_MODULE_START: MiscEggAnimations
+do
+    local Misc = HS.Misc
+    local Core = HS.Core
+
+    Misc.eggAnimMovedToStorage   = false
+    Misc.eggAnimChildAddedConn   = nil
+
     local function getEggAnimContainers()
         local mainGui    = Core.player.PlayerGui:FindFirstChild("MainGui")
         local otherFrames = mainGui and mainGui:FindFirstChild("OtherFrames")
@@ -1208,6 +1212,8 @@ end
             Core.debugLog("Hide egg animations OFF")
         end
     end
+end
+-- HEARTSTEEL_MODULE_END: MiscEggAnimations
 end
 
 -- ══════════════════════════════════════════════════════════════════
