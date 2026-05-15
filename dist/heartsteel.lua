@@ -1053,9 +1053,19 @@ end
 -- HEARTSTEEL_MODULE_END: MiscConfig
 
     -- ── Element ─────────────────────────────────────────────────
+-- HEARTSTEEL_MODULE_START: MiscElement
+-- Bundled from src/modules/MiscElement.lua
+do
+    local Misc = HS.Misc or {}
+    HS.Misc = Misc
+
+    local Core = HS.Core
+
     function Misc.applyElement(selectedValue)
         Core.UIActionRemote:FireServer("ChangeElement", selectedValue or Core.selectionState.selected_element)
     end
+end
+-- HEARTSTEEL_MODULE_END: MiscElement
 
     -- ── Position helpers ─────────────────────────────────────────
 -- HEARTSTEEL_MODULE_START: MiscPosition
@@ -1095,6 +1105,14 @@ end
 -- HEARTSTEEL_MODULE_END: MiscPosition
 
     -- ── Anti-AFK ─────────────────────────────────────────────────
+-- HEARTSTEEL_MODULE_START: MiscAntiAfk
+-- Bundled from src/modules/MiscAntiAfk.lua
+do
+    local Misc = HS.Misc or {}
+    HS.Misc = Misc
+
+    local Core = HS.Core
+
     function Misc.antiAfkPulse(reason)
         local currentCamera = workspace.CurrentCamera
         if not currentCamera then return end
@@ -1120,6 +1138,8 @@ end
         task.wait(1)
         Misc.antiAfkPulse("idled-2")
     end)
+end
+-- HEARTSTEEL_MODULE_END: MiscAntiAfk
 
     -- ── Simulated movement ───────────────────────────────────────
     function Misc.hasSafeGroundBelow(savedCFrame)
