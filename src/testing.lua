@@ -1050,6 +1050,11 @@ end
     end
 
     -- ── Position helpers ─────────────────────────────────────────
+-- HEARTSTEEL_MODULE_START: MiscPosition
+do
+    local Misc = HS.Misc
+    local Core = HS.Core
+
     function Misc.saveCurrentPosition()
         local root = Core.getRoot()
         if not root then Core.debugLog("Unable to save position; HumanoidRootPart missing"); return end
@@ -1075,6 +1080,8 @@ end
             Core.debugLog("Clipboard API unavailable; position =", text)
         end
     end
+end
+-- HEARTSTEEL_MODULE_END: MiscPosition
 
     -- ── Anti-AFK ─────────────────────────────────────────────────
     function Misc.antiAfkPulse(reason)

@@ -7,7 +7,7 @@ MODULES = ROOT / "src" / "modules"
 DIST = ROOT / "dist"
 OUTPUT = DIST / "heartsteel.lua"
 
-MODULE_NAMES = ("Flags", "MiscConfig")
+MODULE_NAMES = ("Flags", "MiscConfig", "MiscPosition")
 
 
 def read_text(path: Path) -> str:
