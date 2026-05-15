@@ -5505,8 +5505,11 @@ end
 -- UI — construction and rendering
 -- ══════════════════════════════════════════════════════════════════
 -- PETDEX FARM - auto-complete egg indexes
+-- HEARTSTEEL_MODULE_START: PetdexFarm
+-- Bundled from src/modules/PetdexFarm.lua
 do
-    local Petdex = HS.PetdexFarm
+    local Petdex = HS.PetdexFarm or {}
+    HS.PetdexFarm = Petdex
     local Core   = HS.Core
 
     Petdex.HATCH_DELAY = 0.35
@@ -5928,6 +5931,8 @@ do
         end)
     end
 end
+end
+-- HEARTSTEEL_MODULE_END: PetdexFarm
 
 -- PETS - inventory craft/evolve automation
 -- HEARTSTEEL_MODULE_START: Pets

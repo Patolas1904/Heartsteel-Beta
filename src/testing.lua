@@ -5482,6 +5482,7 @@ end
 -- UI — construction and rendering
 -- ══════════════════════════════════════════════════════════════════
 -- PETDEX FARM - auto-complete egg indexes
+-- HEARTSTEEL_MODULE_START: PetdexFarm
 do
     local Petdex = HS.PetdexFarm
     local Core   = HS.Core
@@ -5905,6 +5906,7 @@ do
         end)
     end
 end
+-- HEARTSTEEL_MODULE_END: PetdexFarm
 
 -- PETS - inventory craft/evolve automation
 -- HEARTSTEEL_MODULE_START: Pets
