@@ -6717,8 +6717,11 @@ end
 -- HEARTSTEEL_MODULE_END: EggOpener
 
 -- MERCHANT - traveling merchant item filters and auto-buy
+-- HEARTSTEEL_MODULE_START: Merchant
+-- Bundled from src/modules/Merchant.lua
 do
-    local Merchant = HS.Merchant
+    local Merchant = HS.Merchant or {}
+    HS.Merchant = Merchant
     local Core     = HS.Core
     local MERCHANT_RARITY_ICON_ASSETS = {
         Star = "rbxassetid://PASTE_STAR_ICON",
@@ -7117,6 +7120,7 @@ do
         Core.loopWhile(Merchant.STATE_KEY, Merchant.BUY_DELAY, Merchant.buySelected)
     end
 end
+-- HEARTSTEEL_MODULE_END: Merchant
 
 -- LOGS - dungeon egg timer display
 -- HEARTSTEEL_MODULE_START: LogsDungeon

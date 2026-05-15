@@ -6682,6 +6682,7 @@ end
 -- HEARTSTEEL_MODULE_END: EggOpener
 
 -- MERCHANT - traveling merchant item filters and auto-buy
+-- HEARTSTEEL_MODULE_START: Merchant
 do
     local Merchant = HS.Merchant
     local Core     = HS.Core
@@ -7082,6 +7083,7 @@ do
         Core.loopWhile(Merchant.STATE_KEY, Merchant.BUY_DELAY, Merchant.buySelected)
     end
 end
+-- HEARTSTEEL_MODULE_END: Merchant
 
 -- LOGS - dungeon egg timer display
 -- HEARTSTEEL_MODULE_START: LogsDungeon

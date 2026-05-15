@@ -20,6 +20,7 @@ MODULE_NAMES = (
     "Pets",
     "PetdexRewards",
     "EggOpener",
+    "Merchant",
     "LogsDungeon",
 )
 
