@@ -3677,8 +3677,10 @@ end
 -- ELEMENT ZONE PULL — Fire / Water / Earth / Plasma
 -- Starter / Advanced / Master / Grandmaster
 -- ══════════════════════════════════════════════════════════════════
+-- HEARTSTEEL_MODULE_START: ElementZonePull
+-- Bundled from src/modules/ElementZonePull.lua
 do
-    local ElementZonePull = {}
+    local ElementZonePull = HS.ElementZonePull or {}
     HS.ElementZonePull = ElementZonePull
 
     local Core = HS.Core
@@ -4036,6 +4038,8 @@ do
         Core.debugLog("Element pull stopped:", element, tier)
     end
 end
+-- HEARTSTEEL_MODULE_END: ElementZonePull
+
 
 -- ══════════════════════════════════════════════════════════════════
 -- FLAGS — flag capture subsystem

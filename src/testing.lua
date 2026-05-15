@@ -3657,6 +3657,7 @@ end
 -- ELEMENT ZONE PULL — Fire / Water / Earth / Plasma
 -- Starter / Advanced / Master / Grandmaster
 -- ══════════════════════════════════════════════════════════════════
+-- HEARTSTEEL_MODULE_START: ElementZonePull
 do
     local ElementZonePull = {}
     HS.ElementZonePull = ElementZonePull
@@ -4016,6 +4017,8 @@ do
         Core.debugLog("Element pull stopped:", element, tier)
     end
 end
+-- HEARTSTEEL_MODULE_END: ElementZonePull
+
 
 -- ══════════════════════════════════════════════════════════════════
 -- FLAGS — flag capture subsystem
