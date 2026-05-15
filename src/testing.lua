@@ -3972,6 +3972,7 @@ end
 -- ══════════════════════════════════════════════════════════════════
 -- FLAGS — flag capture subsystem
 -- ══════════════════════════════════════════════════════════════════
+-- HEARTSTEEL_MODULE_START: Flags
 do
     local Flags = HS.Flags
     local Core  = HS.Core
@@ -4322,7 +4323,7 @@ do
         end)
     end
 end
-
+-- HEARTSTEEL_MODULE_END: Flags
 -- ══════════════════════════════════════════════════════════════════
 -- DUNGEON — timer, auto-start, egg incubator, chest, hover/hit
 -- ══════════════════════════════════════════════════════════════════
