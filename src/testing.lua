@@ -958,6 +958,11 @@ do
     local Misc   = HS.Misc
     local Core   = HS.Core
 
+-- HEARTSTEEL_MODULE_START: MiscSpeed
+do
+    local Misc = HS.Misc
+    local Core = HS.Core
+
     Misc.moveSpeed          = 16
     Misc.originalMoveSpeed  = nil
     Misc.moveSpeedConn      = nil
@@ -1028,6 +1033,8 @@ do
         Core.debugLog("Move speed OFF - restored to", Misc.originalMoveSpeed or "unchanged")
         Misc.originalMoveSpeed = nil
     end
+end
+-- HEARTSTEEL_MODULE_END: MiscSpeed
 -- HEARTSTEEL_MODULE_START: MiscConfig
 do
     local Misc = HS.Misc
