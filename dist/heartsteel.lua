@@ -6535,8 +6535,12 @@ end
 -- HEARTSTEEL_MODULE_END: PetdexRewards
 
 -- EGG OPENER - selected page/slot auto hatch
+-- HEARTSTEEL_MODULE_START: EggOpener
+-- Bundled from src/modules/EggOpener.lua
 do
-    local EggOpener = HS.EggOpener
+    local EggOpener = HS.EggOpener or {}
+    HS.EggOpener = EggOpener
+
     local Core      = HS.Core
 
     EggOpener.STATE_KEY    = "auto_egg_opener"
@@ -6705,6 +6709,7 @@ do
         end)
     end
 end
+-- HEARTSTEEL_MODULE_END: EggOpener
 
 -- MERCHANT - traveling merchant item filters and auto-buy
 do
