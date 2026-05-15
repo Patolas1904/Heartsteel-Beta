@@ -7319,6 +7319,8 @@ end
 -- HEARTSTEEL_MODULE_END: LogsDungeon
 
 -- LOGS - pet hatch Discord webhook
+-- HEARTSTEEL_MODULE_START: LogsPets
+-- Bundled from src/modules/LogsPets.lua
 do
     HS.Logs.Pets = HS.Logs.Pets or {}
 
@@ -7852,6 +7854,7 @@ do
         LogsPets.syncConnection()
     end
 end
+-- HEARTSTEEL_MODULE_END: LogsPets
 
 -- LOGS - live Discord monitor dashboard
 do

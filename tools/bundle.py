@@ -22,6 +22,7 @@ MODULE_NAMES = (
     "EggOpener",
     "Merchant",
     "LogsDungeon",
+    "LogsPets",
 )
 
 
