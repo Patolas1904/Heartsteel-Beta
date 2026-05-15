@@ -5907,6 +5907,7 @@ do
 end
 
 -- PETS - inventory craft/evolve automation
+-- HEARTSTEEL_MODULE_START: Pets
 do
     local Pets = HS.Pets
     local Core = HS.Core
@@ -6126,6 +6127,7 @@ do
         Pets.debugPrint("auto craft stopped")
     end
 end
+-- HEARTSTEEL_MODULE_END: Pets
 
 -- PETDEX REWARDS - auto-claim unlocked pet count milestones
 do

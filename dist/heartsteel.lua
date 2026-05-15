@@ -5930,8 +5930,12 @@ do
 end
 
 -- PETS - inventory craft/evolve automation
+-- HEARTSTEEL_MODULE_START: Pets
+-- Bundled from src/modules/Pets.lua
 do
-    local Pets = HS.Pets
+    local Pets = HS.Pets or {}
+    HS.Pets = Pets
+
     local Core = HS.Core
 
     Pets.STATE_KEY       = "auto_craft_pets"
@@ -6149,6 +6153,7 @@ do
         Pets.debugPrint("auto craft stopped")
     end
 end
+-- HEARTSTEEL_MODULE_END: Pets
 
 -- PETDEX REWARDS - auto-claim unlocked pet count milestones
 do

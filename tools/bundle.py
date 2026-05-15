@@ -16,6 +16,7 @@ MODULE_NAMES = (
     "MiscAntiAfk",
     "MiscSimMovement",
     "MiscEggAnimations",
+    "Pets",
 )
 
 
