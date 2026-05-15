@@ -23,6 +23,7 @@ MODULE_NAMES = (
     "Merchant",
     "LogsDungeon",
     "LogsPets",
+    "LogsDiscordMonitor",
 )
 
 

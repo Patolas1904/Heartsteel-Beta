@@ -7857,6 +7857,8 @@ end
 -- HEARTSTEEL_MODULE_END: LogsPets
 
 -- LOGS - live Discord monitor dashboard
+-- HEARTSTEEL_MODULE_START: LogsDiscordMonitor
+-- Bundled from src/modules/LogsDiscordMonitor.lua
 do
     HS.Logs = HS.Logs or {}
     HS.Logs.DiscordMonitor = HS.Logs.DiscordMonitor or {}
@@ -8817,6 +8819,7 @@ do
         end
     end
 end
+-- HEARTSTEEL_MODULE_END: LogsDiscordMonitor
 
 do
     local UI     = HS.UI
