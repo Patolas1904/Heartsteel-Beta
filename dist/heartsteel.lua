@@ -1142,6 +1142,14 @@ end
 -- HEARTSTEEL_MODULE_END: MiscAntiAfk
 
     -- ── Simulated movement ───────────────────────────────────────
+-- HEARTSTEEL_MODULE_START: MiscSimMovement
+-- Bundled from src/modules/MiscSimMovement.lua
+do
+    local Misc = HS.Misc or {}
+    HS.Misc = Misc
+
+    local Core = HS.Core
+
     function Misc.hasSafeGroundBelow(savedCFrame)
         local params = RaycastParams.new()
         params.FilterType = Enum.RaycastFilterType.Exclude
@@ -1188,6 +1196,8 @@ end
             Misc.simulateMovementPulse()
         end)
     end
+end
+-- HEARTSTEEL_MODULE_END: MiscSimMovement
 
     -- ── Egg animation hide/show ──────────────────────────────────
 -- HEARTSTEEL_MODULE_START: MiscEggAnimations
