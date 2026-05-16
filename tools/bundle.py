@@ -8,8 +8,10 @@ DIST = ROOT / "dist"
 OUTPUT = DIST / "heartsteel.lua"
 
 MODULE_NAMES = (
+    "Session",
     "AutoCycle",
     "ElementZonePull",
+    "Farming",
     "Flags",
     "MiscSpeed",
     "MiscConfig",

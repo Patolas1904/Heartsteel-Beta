@@ -596,8 +596,11 @@ end
 -- MISC — speed, element, anti-afk, position helpers
 -- ══════════════════════════════════════════════════════════════════
 -- SESSION - persistent controls between script runs
+-- HEARTSTEEL_MODULE_START: Session
+-- Bundled from src/modules/Session.lua
 do
-    local Session = HS.Session
+    local Session = HS.Session or {}
+    HS.Session = Session
     local Core    = HS.Core
 
     Session.FILE_NAME     = "heartsteel_session.json"
@@ -953,6 +956,7 @@ do
         return true
     end
 end
+-- HEARTSTEEL_MODULE_END: Session
 
 do
     local Misc   = HS.Misc
@@ -1260,8 +1264,11 @@ end
 -- ══════════════════════════════════════════════════════════════════
 -- FARMING — swing, sell, boss, crowns, KOTH, clan quests
 -- ══════════════════════════════════════════════════════════════════
+-- HEARTSTEEL_MODULE_START: Farming
+-- Bundled from src/modules/Farming.lua
 do
-    local Farming = HS.Farming
+    local Farming = HS.Farming or {}
+    HS.Farming = Farming
     local Core    = HS.Core
 
     Farming.BossFolder      = Core.Gameplay and Core.Gameplay:WaitForChild("Boss", 10)
@@ -3184,6 +3191,7 @@ do
         Core.debugLog("Refreshed clan quest info")
     end
 end
+-- HEARTSTEEL_MODULE_END: Farming
 
 -- ══════════════════════════════════════════════════════════════════
 -- ELEMENT AUTO CYCLE

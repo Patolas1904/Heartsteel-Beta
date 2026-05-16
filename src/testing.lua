@@ -596,6 +596,7 @@ end
 -- MISC — speed, element, anti-afk, position helpers
 -- ══════════════════════════════════════════════════════════════════
 -- SESSION - persistent controls between script runs
+-- HEARTSTEEL_MODULE_START: Session
 do
     local Session = HS.Session
     local Core    = HS.Core
@@ -953,6 +954,7 @@ do
         return true
     end
 end
+-- HEARTSTEEL_MODULE_END: Session
 
 do
     local Misc   = HS.Misc
@@ -1240,6 +1242,7 @@ end
 -- ══════════════════════════════════════════════════════════════════
 -- FARMING — swing, sell, boss, crowns, KOTH, clan quests
 -- ══════════════════════════════════════════════════════════════════
+-- HEARTSTEEL_MODULE_START: Farming
 do
     local Farming = HS.Farming
     local Core    = HS.Core
@@ -3164,6 +3167,7 @@ do
         Core.debugLog("Refreshed clan quest info")
     end
 end
+-- HEARTSTEEL_MODULE_END: Farming
 
 -- ══════════════════════════════════════════════════════════════════
 -- ELEMENT AUTO CYCLE
