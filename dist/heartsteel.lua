@@ -41,8 +41,11 @@ end
 -- ══════════════════════════════════════════════════════════════════
 -- CORE — CONFIG & STATE
 -- ══════════════════════════════════════════════════════════════════
+-- HEARTSTEEL_MODULE_START: Core
+-- Bundled from src/modules/Core.lua
 do
-    local Core = HS.Core
+    local Core = HS.Core or {}
+    HS.Core = Core
 
     Core.player    = S.Players.LocalPlayer
     Core.playerGui = Core.player:WaitForChild("PlayerGui")
@@ -591,6 +594,7 @@ do
         return value * mult
     end
 end
+-- HEARTSTEEL_MODULE_END: Core
 
 -- ══════════════════════════════════════════════════════════════════
 -- MISC — speed, element, anti-afk, position helpers

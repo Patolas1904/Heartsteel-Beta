@@ -41,6 +41,7 @@ end
 -- ══════════════════════════════════════════════════════════════════
 -- CORE — CONFIG & STATE
 -- ══════════════════════════════════════════════════════════════════
+-- HEARTSTEEL_MODULE_START: Core
 do
     local Core = HS.Core
 
@@ -591,6 +592,7 @@ do
         return value * mult
     end
 end
+-- HEARTSTEEL_MODULE_END: Core
 
 -- ══════════════════════════════════════════════════════════════════
 -- MISC — speed, element, anti-afk, position helpers
