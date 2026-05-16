@@ -4413,8 +4413,11 @@ end
 -- ══════════════════════════════════════════════════════════════════
 -- DUNGEON — timer, auto-start, egg incubator, chest, hover/hit
 -- ══════════════════════════════════════════════════════════════════
+-- HEARTSTEEL_MODULE_START: Dungeon
+-- Bundled from src/modules/Dungeon.lua
 do
-    local Dungeon = HS.Dungeon
+    local Dungeon = HS.Dungeon or {}
+    HS.Dungeon = Dungeon
     local Core    = HS.Core
 
     -- ── Dungeon timer state ─────────────────────────────────────
@@ -5515,6 +5518,7 @@ do
         end)
     end
 end
+-- HEARTSTEEL_MODULE_END: Dungeon
 
 -- ══════════════════════════════════════════════════════════════════
 -- UI — construction and rendering
@@ -8836,8 +8840,11 @@ do
 end
 -- HEARTSTEEL_MODULE_END: LogsDiscordMonitor
 
+-- HEARTSTEEL_MODULE_START: UI
+-- Bundled from src/modules/UI.lua
 do
-    local UI     = HS.UI
+    local UI     = HS.UI or {}
+    HS.UI = UI
     local Core   = HS.Core
     local C      = Core.C
     HS.StandaloneScripts = HS.StandaloneScripts or {}
@@ -10205,6 +10212,7 @@ do
         end)
     end
 end
+-- HEARTSTEEL_MODULE_END: UI
 
 -- ══════════════════════════════════════════════════════════════════
 -- REMOTE LISTENERS

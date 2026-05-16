@@ -4384,6 +4384,7 @@ end
 -- ══════════════════════════════════════════════════════════════════
 -- DUNGEON — timer, auto-start, egg incubator, chest, hover/hit
 -- ══════════════════════════════════════════════════════════════════
+-- HEARTSTEEL_MODULE_START: Dungeon
 do
     local Dungeon = HS.Dungeon
     local Core    = HS.Core
@@ -5486,6 +5487,7 @@ do
         end)
     end
 end
+-- HEARTSTEEL_MODULE_END: Dungeon
 
 -- ══════════════════════════════════════════════════════════════════
 -- UI — construction and rendering
@@ -8790,6 +8792,7 @@ do
 end
 -- HEARTSTEEL_MODULE_END: LogsDiscordMonitor
 
+-- HEARTSTEEL_MODULE_START: UI
 do
     local UI     = HS.UI
     local Core   = HS.Core
@@ -10159,6 +10162,7 @@ do
         end)
     end
 end
+-- HEARTSTEEL_MODULE_END: UI
 
 -- ══════════════════════════════════════════════════════════════════
 -- REMOTE LISTENERS

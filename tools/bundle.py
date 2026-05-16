@@ -13,6 +13,7 @@ MODULE_NAMES = (
     "ElementZonePull",
     "Farming",
     "Flags",
+    "Dungeon",
     "MiscSpeed",
     "MiscConfig",
     "MiscElement",
@@ -28,6 +29,7 @@ MODULE_NAMES = (
     "LogsDungeon",
     "LogsPets",
     "LogsDiscordMonitor",
+    "UI",
 )
 
 
