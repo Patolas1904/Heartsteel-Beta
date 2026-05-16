@@ -10169,7 +10169,6 @@ end
 -- ══════════════════════════════════════════════════════════════════
 -- REMOTE LISTENERS
 -- ══════════════════════════════════════════════════════════════════
--- HEARTSTEEL_MODULE_START: RemoteListeners
 local Core = HS.Core
 
 Core.ClientNotifierRemote.OnClientEvent:Connect(function(eventName, rewards)
@@ -10205,13 +10204,11 @@ Core.ClientNotifierRemote.OnClientEvent:Connect(function(eventName, rewards)
         end
     end
 end)
--- HEARTSTEEL_MODULE_END: RemoteListeners
 
 -- ══════════════════════════════════════════════════════════════════
 -- INIT
 -- ══════════════════════════════════════════════════════════════════
 
--- HEARTSTEEL_MODULE_START: Startup
 HS.Misc.startAntiAfk()
 HS.UI.renderContent()
 HS.Logs.Pets.syncConnection()
@@ -10250,4 +10247,3 @@ task.spawn(function()
 end)
 task.spawn(function() task.wait(2); HS.UI.refreshQuestTitles() end)
 task.spawn(function() task.wait(3); HS.Farming.refreshClanQuestInfo() end)
--- HEARTSTEEL_MODULE_END: Startup
