@@ -5954,7 +5954,6 @@ do
         end)
     end
 end
-end
 -- HEARTSTEEL_MODULE_END: PetdexFarm
 
 -- PETS - inventory craft/evolve automation
