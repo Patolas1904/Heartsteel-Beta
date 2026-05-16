@@ -3169,6 +3169,7 @@ end
 -- ELEMENT AUTO CYCLE
 -- Cycles enabled element pull zones every 20 seconds
 -- ══════════════════════════════════════════════════════════════════
+-- HEARTSTEEL_MODULE_START: AutoCycle
 do
     local AutoCycle = {}
     HS.AutoCycle = AutoCycle
@@ -3652,6 +3653,7 @@ do
         Core.debugLog("Auto Cycle stopped")
     end
 end
+-- HEARTSTEEL_MODULE_END: AutoCycle
 
 -- ══════════════════════════════════════════════════════════════════
 -- ELEMENT ZONE PULL — Fire / Water / Earth / Plasma
