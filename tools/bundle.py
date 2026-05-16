@@ -31,6 +31,8 @@ MODULE_NAMES = (
     "LogsPets",
     "LogsDiscordMonitor",
     "UI",
+    "RemoteListeners",
+    "Startup",
 )
 
 
