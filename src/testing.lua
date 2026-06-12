@@ -7202,6 +7202,41 @@ do
     end
 
     Event.canUseEventWheel = Event.isEventWheelEnabled
+
+    local function countEntries(tbl)
+        if type(tbl) ~= "table" then return nil end
+
+        local ok, length = pcall(function()
+            return #tbl
+        end)
+        if ok and type(length) == "number" and length > 0 then
+            return length
+        end
+
+        local count = 0
+        for _ in pairs(tbl) do
+            count += 1
+        end
+        return count
+    end
+
+    function Event.getStatusText()
+        local eventInfo = Event.getCurrentEventInfo()
+        local currencyName = Event.getCurrentEventCurrencyName() or "Unknown"
+        local listingCount = countEntries(Event.getEventMerchantListings())
+        local bossHRP = Event.getEventBossHRP()
+        local pickupRemote = Event.getCollectCurrencyPickupRemote()
+
+        return table.concat({
+            "Current Event: " .. tostring(Event.CURRENT_EVENT_KEY),
+            "Currency: " .. tostring(currencyName),
+            "EventsInfo: " .. (eventInfo and "found" or "missing"),
+            "Merchant Listings: " .. (listingCount and tostring(listingCount) or "missing"),
+            "Boss HRP: " .. (bossHRP and "found" or "missing"),
+            "Pickup Remote: " .. (pickupRemote and "found" or "missing"),
+            "Event Wheel: disabled",
+        }, "\n")
+    end
 end
 -- HEARTSTEEL_MODULE_END: Event
 
@@ -9519,6 +9554,19 @@ do
         end)
     end
 
+    function UI.makeEventStatusRow()
+        local row = UI.make("Frame", {Parent=content, Size=UDim2.new(1,0,0,118), BackgroundColor3=C.toggleOff, BorderSizePixel=0})
+        UI.addCorner(row, 3); UI.addStroke(row, C.border, 1)
+        UI.make("TextLabel", {
+            Parent=row, BackgroundTransparency=1, Position=UDim2.fromOffset(8,6),
+            Size=UDim2.new(1,-16,1,-12),
+            Text=HS.Event and HS.Event.getStatusText and HS.Event.getStatusText() or "Event: unavailable",
+            Font=Enum.Font.Gotham, TextSize=11, TextColor3=C.textDim,
+            TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top,
+            TextWrapped=true,
+        })
+    end
+
     function UI.makeActionRow(item)
         local row = UI.make("Frame", {Parent=content, Size=UDim2.new(1,0,0,34), BackgroundTransparency=1})
         UI.make("TextLabel", {Parent=row, BackgroundTransparency=1, Position=UDim2.fromOffset(8,0), Size=UDim2.new(1,-92,1,0), Text=item.label, Font=Enum.Font.Gotham, TextSize=12, TextColor3=C.purpleSoft, TextXAlignment=Enum.TextXAlignment.Left})
@@ -9560,6 +9608,7 @@ do
             elseif item.type == "petdex_progress" then UI.makePetdexProgressRow()
             elseif item.type == "petdex_rewards_status" then UI.makePetdexRewardsStatusRow()
             elseif item.type == "eggopener_status" then UI.makeEggOpenerStatusRow()
+            elseif item.type == "event_status"    then UI.makeEventStatusRow()
             elseif item.type == "action"          then UI.makeActionRow(item)
             end
         end
@@ -9828,6 +9877,15 @@ do
                 return t
             end)(),
         },
+        event = {
+            title = "Event",
+            items = {
+                {type="event_status"},
+                {type="label", text="Foundations"},
+                {type="note", text="Event helpers are loaded for info, currency, merchant listings, shop upgrades, and boss paths."},
+                {type="note", text="Event Wheel is intentionally disabled until it is live."},
+            },
+        },
         pets = {
             title = "Hatchery & Petdex",
             items = {
@@ -9991,6 +10049,7 @@ do
         {key="clan",     label="CLAN"},
         {key="pets",     label="PETS"},
         {key="Dungeon",  label="DUNGEON"},
+        {key="event",    label="EVENT"},
         {key="merchant", label="MERCHANT"},
         {key="logs",     label="☀ LOGS"},
         {separator=true},

@@ -99,4 +99,39 @@ return function(HS, S)
     end
 
     Event.canUseEventWheel = Event.isEventWheelEnabled
+
+    local function countEntries(tbl)
+        if type(tbl) ~= "table" then return nil end
+
+        local ok, length = pcall(function()
+            return #tbl
+        end)
+        if ok and type(length) == "number" and length > 0 then
+            return length
+        end
+
+        local count = 0
+        for _ in pairs(tbl) do
+            count += 1
+        end
+        return count
+    end
+
+    function Event.getStatusText()
+        local eventInfo = Event.getCurrentEventInfo()
+        local currencyName = Event.getCurrentEventCurrencyName() or "Unknown"
+        local listingCount = countEntries(Event.getEventMerchantListings())
+        local bossHRP = Event.getEventBossHRP()
+        local pickupRemote = Event.getCollectCurrencyPickupRemote()
+
+        return table.concat({
+            "Current Event: " .. tostring(Event.CURRENT_EVENT_KEY),
+            "Currency: " .. tostring(currencyName),
+            "EventsInfo: " .. (eventInfo and "found" or "missing"),
+            "Merchant Listings: " .. (listingCount and tostring(listingCount) or "missing"),
+            "Boss HRP: " .. (bossHRP and "found" or "missing"),
+            "Pickup Remote: " .. (pickupRemote and "found" or "missing"),
+            "Event Wheel: disabled",
+        }, "\n")
+    end
 end
