@@ -742,6 +742,8 @@ return function(HS, S)
             title = "Session",
             items = {
                 {type="status", bind="session", text="No session loaded"},
+                {type="label", text="Event Status"},
+                {type="event_status"},
                 {type="action", label="Reset saved session", buttonText="RESET", danger=true,
                     callback=function()
                         HS.Session.resetNextStartup()
@@ -943,6 +945,12 @@ return function(HS, S)
             title = "Event",
             items = {
                 {type="event_status"},
+                {type="label", text="Currency"},
+                {type="toggle", key=HS.Event.CURRENCY_PICKUP_STATE_KEY, label="Auto Event Currency Pickup",
+                    callback=function(on)
+                        if on then HS.Event.startCurrencyPickup()
+                        else HS.Event.stopCurrencyPickup() end
+                    end},
                 {type="label", text="Foundations"},
                 {type="note", text="Event helpers are loaded for info, currency, merchant listings, shop upgrades, and boss paths."},
                 {type="note", text="Event Wheel is intentionally disabled until it is live."},
