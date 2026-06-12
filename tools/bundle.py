@@ -27,6 +27,7 @@ MODULE_NAMES = (
     "PetdexRewards",
     "EggOpener",
     "Merchant",
+    "Event",
     "LogsDungeon",
     "LogsPets",
     "LogsDiscordMonitor",
