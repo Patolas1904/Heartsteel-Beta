@@ -617,7 +617,7 @@ return function(HS, S)
     end
 
     function UI.makeEventStatusRow()
-        local row = UI.make("Frame", {Parent=content, Size=UDim2.new(1,0,0,118), BackgroundColor3=C.toggleOff, BorderSizePixel=0})
+        local row = UI.make("Frame", {Parent=content, Size=UDim2.new(1,0,0,150), BackgroundColor3=C.toggleOff, BorderSizePixel=0})
         UI.addCorner(row, 3); UI.addStroke(row, C.border, 1)
         UI.make("TextLabel", {
             Parent=row, BackgroundTransparency=1, Position=UDim2.fromOffset(8,6),

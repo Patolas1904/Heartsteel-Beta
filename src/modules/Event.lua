@@ -14,6 +14,7 @@ return function(HS, S)
     Event.moduleCache = Event.moduleCache or {}
     Event.currencyPickupConnection = Event.currencyPickupConnection or nil
     Event.currencyPickupStarting = Event.currencyPickupStarting or false
+    Event.lastPickupBatchSize = Event.lastPickupBatchSize or 0
 
     local function getModulesFolder()
         local replicatedStorage = S.ReplicatedStorage
@@ -118,25 +119,16 @@ return function(HS, S)
         return Core and Core.parseCompactNumber and Core.parseCompactNumber(text) or tonumber(text)
     end
 
-    function Event.getCurrencyHolder()
-        if Core and Core.CurrencyHolder then return Core.CurrencyHolder end
-
+    function Event.getEventCurrencyHolder()
         local gameplay = workspace:FindFirstChild("Gameplay")
-        local currencyPickup = gameplay and gameplay:FindFirstChild("CurrencyPickup")
+        local regionsLoaded = gameplay and gameplay:FindFirstChild("RegionsLoaded")
+        local summerEvent = regionsLoaded and regionsLoaded:FindFirstChild("SummerEvent26")
+        local currencyPickup = summerEvent and summerEvent:FindFirstChild("CurrencyPickup")
         return currencyPickup and currencyPickup:FindFirstChild("CurrencyHolder") or nil
     end
 
-    local function containsNeedle(value, needle)
-        return type(value) == "string"
-            and value ~= ""
-            and string.find(string.lower(value), string.lower(needle), 1, true) ~= nil
-    end
-
-    local function readAttribute(obj, attributeName)
-        local ok, value = pcall(function()
-            return obj:GetAttribute(attributeName)
-        end)
-        return ok and value or nil
+    function Event.getCurrencyHolder()
+        return Event.getEventCurrencyHolder()
     end
 
     function Event.isEventCurrencyPickup(obj)
@@ -144,30 +136,7 @@ return function(HS, S)
 
         local holder = Event.getCurrencyHolder()
         if not holder or not obj:IsDescendantOf(holder) then return false end
-
-        local currencyName = Event.getCurrentEventCurrencyName() or Event.CURRENT_EVENT_CURRENCY_NAME
-        local eventKey = Event.CURRENT_EVENT_KEY
-        local checks = {
-            obj.Name,
-            tostring(readAttribute(obj, "Currency")),
-            tostring(readAttribute(obj, "CurrencyName")),
-            tostring(readAttribute(obj, "CurrencyType")),
-            tostring(readAttribute(obj, "Type")),
-            tostring(readAttribute(obj, "EventCurrency")),
-            tostring(readAttribute(obj, "EventName")),
-        }
-
-        for _, value in ipairs(checks) do
-            if containsNeedle(value, currencyName)
-                or containsNeedle(value, eventKey)
-                or containsNeedle(value, "EventCoin")
-                or containsNeedle(value, "EventCurrency")
-            then
-                return true
-            end
-        end
-
-        return false
+        return obj.Parent ~= nil
     end
 
     function Event.findEventCurrencyPickups()
@@ -183,16 +152,36 @@ return function(HS, S)
         return pickups
     end
 
-    function Event.collectCurrencyPickup(obj)
+    function Event.collectCurrencyPickups(pickups)
         if not Core or not Core.alive or not Core.state[Event.CURRENCY_PICKUP_STATE_KEY] then return end
-        if not Event.isEventCurrencyPickup(obj) then return end
+        if type(pickups) ~= "table" or #pickups <= 0 then
+            Event.lastPickupBatchSize = 0
+            return
+        end
+
+        local validPickups = {}
+        for _, pickup in ipairs(pickups) do
+            if Event.isEventCurrencyPickup(pickup) then
+                table.insert(validPickups, pickup)
+            end
+        end
+        if #validPickups <= 0 then
+            Event.lastPickupBatchSize = 0
+            return
+        end
 
         local remote = Event.getCollectCurrencyPickupRemote()
         if not remote then return end
 
+        Event.lastPickupBatchSize = #validPickups
         pcall(function()
-            remote:FireServer(obj)
+            remote:FireServer(validPickups)
         end)
+    end
+
+    function Event.collectCurrencyPickup(obj)
+        if not Event.isEventCurrencyPickup(obj) then return end
+        Event.collectCurrencyPickups({obj})
     end
 
     function Event.stopCurrencyPickup()
@@ -215,14 +204,11 @@ return function(HS, S)
                 return
             end
 
-            for _, obj in ipairs(holder:GetChildren()) do
-                if not Core.alive or not Core.state[Event.CURRENCY_PICKUP_STATE_KEY] then
-                    Event.currencyPickupStarting = false
-                    return
-                end
-                Event.collectCurrencyPickup(obj)
-                task.wait(Event.CURRENCY_PICKUP_DELAY)
+            if not Core.alive or not Core.state[Event.CURRENCY_PICKUP_STATE_KEY] then
+                Event.currencyPickupStarting = false
+                return
             end
+            Event.collectCurrencyPickups(Event.findEventCurrencyPickups())
 
             if Event.currencyPickupConnection then
                 Event.currencyPickupStarting = false
@@ -280,6 +266,8 @@ return function(HS, S)
         local listingCount = countEntries(Event.getEventMerchantListings())
         local bossHRP = Event.getEventBossHRP()
         local pickupRemote = Event.getCollectCurrencyPickupRemote()
+        local pickupHolder = Event.getEventCurrencyHolder()
+        local pickupChildren = pickupHolder and #pickupHolder:GetChildren() or nil
 
         return table.concat({
             "Current Event: " .. tostring(Event.CURRENT_EVENT_KEY),
@@ -289,6 +277,9 @@ return function(HS, S)
             "Merchant Listings: " .. (listingCount and tostring(listingCount) or "missing"),
             "Boss HRP: " .. (bossHRP and "found" or "missing"),
             "Pickup Remote: " .. (pickupRemote and "found" or "missing"),
+            "Pickup Holder: " .. (pickupHolder and "found" or "missing"),
+            "Pickup Children: " .. (pickupChildren and tostring(pickupChildren) or "missing"),
+            "Last Pickup Batch: " .. tostring(Event.lastPickupBatchSize or 0),
             "Event Wheel: disabled",
         }, "\n")
     end
