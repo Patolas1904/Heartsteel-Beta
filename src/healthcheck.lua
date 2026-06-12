@@ -365,6 +365,92 @@ local function inputStatus(inputs, key)
     return "empty"
 end
 
+local function callEventHelper(event, helperName)
+    local fn = type(event) == "table" and safeRead(event, helperName) or nil
+
+    if type(fn) ~= "function" then
+        return false, nil, "missing_function"
+    end
+
+    local ok, result = pcall(fn)
+    if not ok then
+        return false, nil, "failed"
+    end
+
+    return true, result, "ok"
+end
+
+local function buildEventSubsystemFacts(HS)
+    local event = HS and getPath(HS, { "Event" }) or nil
+
+    local facts = {
+        table = type(event) == "table",
+        currentEventKey = type(event) == "table" and tostring(safeRead(event, "CURRENT_EVENT_KEY") or "") or "",
+        expectedCurrencyName = type(event) == "table" and tostring(safeRead(event, "CURRENT_EVENT_CURRENCY_NAME") or "") or "",
+
+        getEventsInfo = type(event) == "table" and type(safeRead(event, "getEventsInfo")) == "function" or false,
+        getEventMerchantInfo = type(event) == "table" and type(safeRead(event, "getEventMerchantInfo")) == "function" or false,
+        getCurrentEventInfo = type(event) == "table" and type(safeRead(event, "getCurrentEventInfo")) == "function" or false,
+        getCurrentEventCurrencyName = type(event) == "table" and type(safeRead(event, "getCurrentEventCurrencyName")) == "function" or false,
+        getEventMerchantListings = type(event) == "table" and type(safeRead(event, "getEventMerchantListings")) == "function" or false,
+        getEventBossHRP = type(event) == "table" and type(safeRead(event, "getEventBossHRP")) == "function" or false,
+        getCollectCurrencyPickupRemote = type(event) == "table" and type(safeRead(event, "getCollectCurrencyPickupRemote")) == "function" or false,
+        isEventWheelEnabled = type(event) == "table" and type(safeRead(event, "isEventWheelEnabled")) == "function" or false,
+
+        eventsInfoAvailable = false,
+        eventMerchantInfoAvailable = false,
+        currentEventInfoAvailable = false,
+        currencyName = nil,
+        currencyNameStatus = "missing",
+        merchantListingsAvailable = false,
+        merchantListingCount = 0,
+        bossHRPAvailable = false,
+        bossHRPType = "nil",
+        collectCurrencyPickupRemote = false,
+        collectCurrencyPickupRemoteType = "nil",
+        eventWheelEnabled = false,
+        eventWheelDisabled = true,
+        eventUiTab = HS and getPath(HS, { "UI", "UI_DATA", "event" }) ~= nil or false,
+    }
+
+    if type(event) ~= "table" then
+        return facts
+    end
+
+    local okEventsInfo, eventsInfo = callEventHelper(event, "getEventsInfo")
+    facts.eventsInfoAvailable = okEventsInfo and type(eventsInfo) == "table"
+
+    local okMerchantInfo, merchantInfo = callEventHelper(event, "getEventMerchantInfo")
+    facts.eventMerchantInfoAvailable = okMerchantInfo and type(merchantInfo) == "table"
+
+    local okCurrentInfo, currentInfo = callEventHelper(event, "getCurrentEventInfo")
+    facts.currentEventInfoAvailable = okCurrentInfo and type(currentInfo) == "table"
+
+    local okCurrency, currencyName = callEventHelper(event, "getCurrentEventCurrencyName")
+    if okCurrency and type(currencyName) == "string" and currencyName ~= "" then
+        facts.currencyName = currencyName
+        facts.currencyNameStatus = currencyName == "Seashells" and "seashells" or "other"
+    end
+
+    local okListings, listings = callEventHelper(event, "getEventMerchantListings")
+    facts.merchantListingsAvailable = okListings and type(listings) == "table"
+    facts.merchantListingCount = facts.merchantListingsAvailable and countArrayOrKeys(listings) or 0
+
+    local okBossHRP, bossHRP = callEventHelper(event, "getEventBossHRP")
+    facts.bossHRPAvailable = okBossHRP and bossHRP ~= nil
+    facts.bossHRPType = valueKind(bossHRP)
+
+    local okRemote, remote = callEventHelper(event, "getCollectCurrencyPickupRemote")
+    facts.collectCurrencyPickupRemote = okRemote and remote ~= nil
+    facts.collectCurrencyPickupRemoteType = valueKind(remote)
+
+    local okWheel, wheelEnabled = callEventHelper(event, "isEventWheelEnabled")
+    facts.eventWheelEnabled = okWheel and wheelEnabled == true
+    facts.eventWheelDisabled = okWheel and wheelEnabled ~= true
+
+    return facts
+end
+
 local function listEnabledToggles(state)
     local keys = {}
 
@@ -1134,6 +1220,8 @@ local payload = {
             stateKey = HS and getPath(HS, { "Merchant", "STATE_KEY" }) or nil,
             buySelected = HS and isFunction(HS, { "Merchant", "buySelected" }) or false,
         },
+
+        eventSubsystem = buildEventSubsystemFacts(HS),
 
         petdexEventEggs = buildPetdexEventEggFacts(HS),
     },

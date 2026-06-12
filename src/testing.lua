@@ -21,6 +21,7 @@ HS.PetdexRewards = {} -- petdex reward claiming
 HS.EggOpener = {} -- selected egg auto opener
 HS.Pets    = {}   -- pet inventory automation
 HS.Merchant = {} -- traveling merchant auto-buy
+HS.Event   = {}   -- event helpers/foundation
 HS.Flags   = {}   -- flag capture subsystem
 HS.Misc    = {}   -- speed, element, anti-afk, position helpers
 HS.Logs    = {}   -- Discord/webhook logging
@@ -41,6 +42,7 @@ end
 -- ══════════════════════════════════════════════════════════════════
 -- CORE — CONFIG & STATE
 -- ══════════════════════════════════════════════════════════════════
+-- HEARTSTEEL_MODULE_START: Core
 do
     local Core = HS.Core
 
@@ -591,11 +593,13 @@ do
         return value * mult
     end
 end
+-- HEARTSTEEL_MODULE_END: Core
 
 -- ══════════════════════════════════════════════════════════════════
 -- MISC — speed, element, anti-afk, position helpers
 -- ══════════════════════════════════════════════════════════════════
 -- SESSION - persistent controls between script runs
+-- HEARTSTEEL_MODULE_START: Session
 do
     local Session = HS.Session
     local Core    = HS.Core
@@ -953,17 +957,22 @@ do
         return true
     end
 end
+-- HEARTSTEEL_MODULE_END: Session
 
 do
     local Misc   = HS.Misc
     local Core   = HS.Core
+
+-- HEARTSTEEL_MODULE_START: MiscSpeed
+do
+    local Misc = HS.Misc
+    local Core = HS.Core
 
     Misc.moveSpeed          = 16
     Misc.originalMoveSpeed  = nil
     Misc.moveSpeedConn      = nil
     Misc.moveSpeedCharConn  = nil
 
-    -- ── Speed ───────────────────────────────────────────────────
     function Misc.getHumanoid()
         local char = Core.player.Character
         if not char then return nil end
@@ -1028,21 +1037,39 @@ do
         Core.debugLog("Move speed OFF - restored to", Misc.originalMoveSpeed or "unchanged")
         Misc.originalMoveSpeed = nil
     end
+end
+-- HEARTSTEEL_MODULE_END: MiscSpeed
+-- HEARTSTEEL_MODULE_START: MiscConfig
+do
+    local Misc = HS.Misc
+
     Misc.ANTI_AFK_DELAY     = 20
     Misc.SIM_MOVE_DELAY     = 20
     Misc.SIM_MOVE_DISTANCE  = 1.5
     Misc.SIM_MOVE_WAIT      = 0.12
-    Misc.eggAnimMovedToStorage   = false
-    Misc.eggAnimChildAddedConn   = nil
 
     Misc.ELEMENT_OPTIONS = {"Fire","Water","Earth","Plasma"}
+end
+-- HEARTSTEEL_MODULE_END: MiscConfig
 
     -- ── Element ─────────────────────────────────────────────────
+-- HEARTSTEEL_MODULE_START: MiscElement
+do
+    local Misc = HS.Misc
+    local Core = HS.Core
+
     function Misc.applyElement(selectedValue)
         Core.UIActionRemote:FireServer("ChangeElement", selectedValue or Core.selectionState.selected_element)
     end
+end
+-- HEARTSTEEL_MODULE_END: MiscElement
 
     -- ── Position helpers ─────────────────────────────────────────
+-- HEARTSTEEL_MODULE_START: MiscPosition
+do
+    local Misc = HS.Misc
+    local Core = HS.Core
+
     function Misc.saveCurrentPosition()
         local root = Core.getRoot()
         if not root then Core.debugLog("Unable to save position; HumanoidRootPart missing"); return end
@@ -1068,8 +1095,15 @@ do
             Core.debugLog("Clipboard API unavailable; position =", text)
         end
     end
+end
+-- HEARTSTEEL_MODULE_END: MiscPosition
 
     -- ── Anti-AFK ─────────────────────────────────────────────────
+-- HEARTSTEEL_MODULE_START: MiscAntiAfk
+do
+    local Misc = HS.Misc
+    local Core = HS.Core
+
     function Misc.antiAfkPulse(reason)
         local currentCamera = workspace.CurrentCamera
         if not currentCamera then return end
@@ -1095,8 +1129,15 @@ do
         task.wait(1)
         Misc.antiAfkPulse("idled-2")
     end)
+end
+-- HEARTSTEEL_MODULE_END: MiscAntiAfk
 
     -- ── Simulated movement ───────────────────────────────────────
+-- HEARTSTEEL_MODULE_START: MiscSimMovement
+do
+    local Misc = HS.Misc
+    local Core = HS.Core
+
     function Misc.hasSafeGroundBelow(savedCFrame)
         local params = RaycastParams.new()
         params.FilterType = Enum.RaycastFilterType.Exclude
@@ -1143,8 +1184,18 @@ do
             Misc.simulateMovementPulse()
         end)
     end
+end
+-- HEARTSTEEL_MODULE_END: MiscSimMovement
 
     -- ── Egg animation hide/show ──────────────────────────────────
+-- HEARTSTEEL_MODULE_START: MiscEggAnimations
+do
+    local Misc = HS.Misc
+    local Core = HS.Core
+
+    Misc.eggAnimMovedToStorage   = false
+    Misc.eggAnimChildAddedConn   = nil
+
     local function getEggAnimContainers()
         local mainGui    = Core.player.PlayerGui:FindFirstChild("MainGui")
         local otherFrames = mainGui and mainGui:FindFirstChild("OtherFrames")
@@ -1188,10 +1239,13 @@ do
         end
     end
 end
+-- HEARTSTEEL_MODULE_END: MiscEggAnimations
+end
 
 -- ══════════════════════════════════════════════════════════════════
 -- FARMING — swing, sell, boss, crowns, KOTH, clan quests
 -- ══════════════════════════════════════════════════════════════════
+-- HEARTSTEEL_MODULE_START: Farming
 do
     local Farming = HS.Farming
     local Core    = HS.Core
@@ -3116,11 +3170,13 @@ do
         Core.debugLog("Refreshed clan quest info")
     end
 end
+-- HEARTSTEEL_MODULE_END: Farming
 
 -- ══════════════════════════════════════════════════════════════════
 -- ELEMENT AUTO CYCLE
 -- Cycles enabled element pull zones every 20 seconds
 -- ══════════════════════════════════════════════════════════════════
+-- HEARTSTEEL_MODULE_START: AutoCycle
 do
     local AutoCycle = {}
     HS.AutoCycle = AutoCycle
@@ -3604,11 +3660,13 @@ do
         Core.debugLog("Auto Cycle stopped")
     end
 end
+-- HEARTSTEEL_MODULE_END: AutoCycle
 
 -- ══════════════════════════════════════════════════════════════════
 -- ELEMENT ZONE PULL — Fire / Water / Earth / Plasma
 -- Starter / Advanced / Master / Grandmaster
 -- ══════════════════════════════════════════════════════════════════
+-- HEARTSTEEL_MODULE_START: ElementZonePull
 do
     local ElementZonePull = {}
     HS.ElementZonePull = ElementZonePull
@@ -3968,10 +4026,13 @@ do
         Core.debugLog("Element pull stopped:", element, tier)
     end
 end
+-- HEARTSTEEL_MODULE_END: ElementZonePull
+
 
 -- ══════════════════════════════════════════════════════════════════
 -- FLAGS — flag capture subsystem
 -- ══════════════════════════════════════════════════════════════════
+-- HEARTSTEEL_MODULE_START: Flags
 do
     local Flags = HS.Flags
     local Core  = HS.Core
@@ -4322,10 +4383,11 @@ do
         end)
     end
 end
-
+-- HEARTSTEEL_MODULE_END: Flags
 -- ══════════════════════════════════════════════════════════════════
 -- DUNGEON — timer, auto-start, egg incubator, chest, hover/hit
 -- ══════════════════════════════════════════════════════════════════
+-- HEARTSTEEL_MODULE_START: Dungeon
 do
     local Dungeon = HS.Dungeon
     local Core    = HS.Core
@@ -5428,11 +5490,13 @@ do
         end)
     end
 end
+-- HEARTSTEEL_MODULE_END: Dungeon
 
 -- ══════════════════════════════════════════════════════════════════
 -- UI — construction and rendering
 -- ══════════════════════════════════════════════════════════════════
 -- PETDEX FARM - auto-complete egg indexes
+-- HEARTSTEEL_MODULE_START: PetdexFarm
 do
     local Petdex = HS.PetdexFarm
     local Core   = HS.Core
@@ -5856,8 +5920,10 @@ do
         end)
     end
 end
+-- HEARTSTEEL_MODULE_END: PetdexFarm
 
 -- PETS - inventory craft/evolve automation
+-- HEARTSTEEL_MODULE_START: Pets
 do
     local Pets = HS.Pets
     local Core = HS.Core
@@ -6077,8 +6143,10 @@ do
         Pets.debugPrint("auto craft stopped")
     end
 end
+-- HEARTSTEEL_MODULE_END: Pets
 
 -- PETDEX REWARDS - auto-claim unlocked pet count milestones
+-- HEARTSTEEL_MODULE_START: PetdexRewards
 do
     local Rewards = HS.PetdexRewards
     local Core    = HS.Core
@@ -6451,8 +6519,10 @@ do
         end)
     end
 end
+-- HEARTSTEEL_MODULE_END: PetdexRewards
 
 -- EGG OPENER - selected page/slot auto hatch
+-- HEARTSTEEL_MODULE_START: EggOpener
 do
     local EggOpener = HS.EggOpener
     local Core      = HS.Core
@@ -6623,8 +6693,10 @@ do
         end)
     end
 end
+-- HEARTSTEEL_MODULE_END: EggOpener
 
 -- MERCHANT - traveling merchant item filters and auto-buy
+-- HEARTSTEEL_MODULE_START: Merchant
 do
     local Merchant = HS.Merchant
     local Core     = HS.Core
@@ -7025,8 +7097,116 @@ do
         Core.loopWhile(Merchant.STATE_KEY, Merchant.BUY_DELAY, Merchant.buySelected)
     end
 end
+-- HEARTSTEEL_MODULE_END: Merchant
+
+-- EVENT - foundational event helpers
+-- HEARTSTEEL_MODULE_START: Event
+do
+    local Event = HS.Event or {}
+    HS.Event = Event
+
+    local Core = HS.Core
+
+    Event.CURRENT_EVENT_KEY = "Summer26"
+    Event.CURRENT_EVENT_CURRENCY_NAME = "Seashells"
+    Event.EVENT_MERCHANT_BUY_ACTION = "EventMerchantBuyItem"
+    Event.EVENT_UPGRADE_BUY_ACTION = "BuyEventUpgrade"
+
+    Event.moduleCache = Event.moduleCache or {}
+
+    local function getModulesFolder()
+        local replicatedStorage = S.ReplicatedStorage
+        return replicatedStorage and replicatedStorage:FindFirstChild("Modules") or nil
+    end
+
+    local function requireModule(moduleName)
+        if Event.moduleCache[moduleName] ~= nil then
+            return Event.moduleCache[moduleName]
+        end
+
+        local modules = getModulesFolder()
+        local moduleScript = modules and modules:FindFirstChild(moduleName)
+        if not moduleScript then return nil end
+
+        local ok, result = pcall(require, moduleScript)
+        if not ok then
+            if Core and Core.debugLog then
+                Core.debugLog("Event module require failed:", moduleName, tostring(result))
+            end
+            return nil
+        end
+
+        Event.moduleCache[moduleName] = result
+        return result
+    end
+
+    function Event.getEventsInfo()
+        return requireModule("EventsInfo")
+    end
+
+    function Event.getEventMerchantInfo()
+        return requireModule("EventMerchantInfo")
+    end
+
+    function Event.getCurrentEventInfo()
+        local eventsInfo = Event.getEventsInfo()
+        local events = type(eventsInfo) == "table" and eventsInfo.Events or nil
+        return type(events) == "table" and events[Event.CURRENT_EVENT_KEY] or nil
+    end
+
+    function Event.getCurrentEventCurrencyName()
+        local info = Event.getCurrentEventInfo()
+        if type(info) == "table" then
+            local currencyName = info.CurrencyName or info.Currency or info.CurrencyType
+            if type(currencyName) == "string" and currencyName ~= "" then
+                return currencyName
+            end
+        end
+        return Event.CURRENT_EVENT_CURRENCY_NAME
+    end
+
+    function Event.getEventMerchantListings()
+        local merchantInfo = Event.getEventMerchantInfo()
+        local listings = type(merchantInfo) == "table" and merchantInfo.Listings or nil
+        return type(listings) == "table" and listings or nil
+    end
+
+    function Event.getEventBossHRP()
+        local gameplay = workspace:FindFirstChild("Gameplay")
+        local regionsLoaded = gameplay and gameplay:FindFirstChild("RegionsLoaded")
+        local summerEvent = regionsLoaded and regionsLoaded:FindFirstChild("SummerEvent26")
+        local bossRoot = summerEvent and summerEvent:FindFirstChild("Boss")
+        local bossHolder = bossRoot and bossRoot:FindFirstChild("BossHolder")
+        local boss = bossHolder and bossHolder:FindFirstChild("Boss")
+        return boss and boss:FindFirstChild("HumanoidRootPart") or nil
+    end
+
+    function Event.getCollectCurrencyPickupRemote()
+        if Core and Core.CollectCurrencyRemote then return Core.CollectCurrencyRemote end
+
+        local events = S.ReplicatedStorage and S.ReplicatedStorage:FindFirstChild("Events")
+        return events and events:FindFirstChild("CollectCurrencyPickup") or nil
+    end
+
+    function Event.getEventMerchantBuyAction()
+        return Event.EVENT_MERCHANT_BUY_ACTION
+    end
+
+    function Event.getEventUpgradeBuyAction()
+        return Event.EVENT_UPGRADE_BUY_ACTION
+    end
+
+    function Event.isEventWheelEnabled()
+        -- EventWheelInfo exists, but Event Wheel is intentionally disabled until it is live.
+        return false
+    end
+
+    Event.canUseEventWheel = Event.isEventWheelEnabled
+end
+-- HEARTSTEEL_MODULE_END: Event
 
 -- LOGS - dungeon egg timer display
+-- HEARTSTEEL_MODULE_START: LogsDungeon
 do
     HS.Logs = HS.Logs or {}
     HS.Logs.Dungeon = HS.Logs.Dungeon or {}
@@ -7218,8 +7398,10 @@ do
         end
     end
 end
+-- HEARTSTEEL_MODULE_END: LogsDungeon
 
 -- LOGS - pet hatch Discord webhook
+-- HEARTSTEEL_MODULE_START: LogsPets
 do
     HS.Logs.Pets = HS.Logs.Pets or {}
 
@@ -7753,8 +7935,10 @@ do
         LogsPets.syncConnection()
     end
 end
+-- HEARTSTEEL_MODULE_END: LogsPets
 
 -- LOGS - live Discord monitor dashboard
+-- HEARTSTEEL_MODULE_START: LogsDiscordMonitor
 do
     HS.Logs = HS.Logs or {}
     HS.Logs.DiscordMonitor = HS.Logs.DiscordMonitor or {}
@@ -8715,7 +8899,9 @@ do
         end
     end
 end
+-- HEARTSTEEL_MODULE_END: LogsDiscordMonitor
 
+-- HEARTSTEEL_MODULE_START: UI
 do
     local UI     = HS.UI
     local Core   = HS.Core
@@ -10085,6 +10271,7 @@ do
         end)
     end
 end
+-- HEARTSTEEL_MODULE_END: UI
 
 -- ══════════════════════════════════════════════════════════════════
 -- REMOTE LISTENERS
