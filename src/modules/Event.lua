@@ -10,11 +10,27 @@ return function(HS, S)
     Event.EVENT_UPGRADE_BUY_ACTION = "BuyEventUpgrade"
     Event.CURRENCY_PICKUP_STATE_KEY = "event_currency_pickup"
     Event.CURRENCY_PICKUP_DELAY = 0.05
+    Event.EVENT_BOSS_STATE_KEY = "event_boss"
+    Event.EVENT_BOSS_TP_STATE_KEY = "event_boss_tp"
+    Event.EVENT_BOSS_TP_CFRAME = CFrame.new(
+        1021.30432, 89.4617004, 1521.46338,
+        -0.734982431, -5.48722916e-08, -0.678086162,
+        -6.02579533e-08, 1, -1.5608272e-08,
+        0.678086162, 2.93882785e-08, -0.734982431
+    )
+    Event.EVENT_BOSS_FOLLOW_DISTANCE = 14
+    Event.EVENT_BOSS_TP_COOLDOWN = 3
 
     Event.moduleCache = Event.moduleCache or {}
     Event.currencyPickupConnection = Event.currencyPickupConnection or nil
     Event.currencyPickupStarting = Event.currencyPickupStarting or false
     Event.lastPickupBatchSize = Event.lastPickupBatchSize or 0
+    Event.eventBossHeartbeat = Event.eventBossHeartbeat or nil
+    Event.eventBossAttackThread = Event.eventBossAttackThread or nil
+    Event.eventBossStatusThread = Event.eventBossStatusThread or nil
+    Event.eventBossAttacking = Event.eventBossAttacking or false
+    Event.eventBossLastTeleport = Event.eventBossLastTeleport or 0
+    Event.eventBossLastPriorityLog = Event.eventBossLastPriorityLog or 0
 
     local function getModulesFolder()
         local replicatedStorage = S.ReplicatedStorage
@@ -81,6 +97,244 @@ return function(HS, S)
         local bossHolder = bossRoot and bossRoot:FindFirstChild("BossHolder")
         local boss = bossHolder and bossHolder:FindFirstChild("Boss")
         return boss and boss:FindFirstChild("HumanoidRootPart") or nil
+    end
+
+    function Event.getEventBossModel()
+        local hrp = Event.getEventBossHRP()
+        return hrp and hrp.Parent or nil
+    end
+
+    function Event.getEventBossArenaBase()
+        local gameplay = workspace:FindFirstChild("Gameplay")
+        local regionsLoaded = gameplay and gameplay:FindFirstChild("RegionsLoaded")
+        local summerEvent = regionsLoaded and regionsLoaded:FindFirstChild("SummerEvent26")
+        local bossRoot = summerEvent and summerEvent:FindFirstChild("Boss")
+        return bossRoot and bossRoot:FindFirstChild("ArenaBase") or nil
+    end
+
+    function Event.getEventBossArenaStatusLabel()
+        local gameplay = workspace:FindFirstChild("Gameplay")
+        local regionsLoaded = gameplay and gameplay:FindFirstChild("RegionsLoaded")
+        local summerEvent = regionsLoaded and regionsLoaded:FindFirstChild("SummerEvent26")
+        local bossRoot = summerEvent and summerEvent:FindFirstChild("Boss")
+        local arenaGui = bossRoot and bossRoot:FindFirstChild("ArenaGui")
+        local billboardGui = arenaGui and arenaGui:FindFirstChild("BillboardGui")
+        local frame = billboardGui and billboardGui:FindFirstChild("Frame")
+        local label = frame and frame:FindFirstChild("TextLabelBottom")
+        return label and label:IsA("TextLabel") and label or nil
+    end
+
+    function Event.getEventBossArenaStatusText()
+        local label = Event.getEventBossArenaStatusLabel()
+        local text = label and label.Text
+        return type(text) == "string" and text or nil
+    end
+
+    local function normalizeStatusText(text)
+        if type(text) ~= "string" then return "" end
+        return text:lower():gsub("%s+", " "):match("^%s*(.-)%s*$") or ""
+    end
+
+    function Event.isEventBossCooldownStatusText(text)
+        local lower = normalizeStatusText(text)
+        if lower == "" then return false end
+        if lower:find("respawn", 1, true)
+            or lower:find("spawns", 1, true)
+            or lower:find("spawn", 1, true)
+            or lower:find("cooldown", 1, true)
+            or lower:find("cool down", 1, true) then
+            return true
+        end
+
+        local hasTimerWord = lower:find("timer", 1, true)
+            or lower:find("time", 1, true)
+            or lower:match("%f[%a]in%f[%A]") ~= nil
+        local hasCountdown = lower:match("%d+%s*:%s*%d+") ~= nil
+            or lower:match("%d+%s*[smh]%f[%A]") ~= nil
+            or lower:match("%d+%s*sec") ~= nil
+            or lower:match("%d+%s*min") ~= nil
+        return hasTimerWord and hasCountdown
+    end
+
+    function Event.isEventBossActiveStatusText(text)
+        local lower = normalizeStatusText(text)
+        if lower == "" then return false end
+        if lower:find("hp", 1, true) or lower:find("health", 1, true) then
+            return true
+        end
+        return lower:match("%d[%d,%.%s]*%s*/%s*%d[%d,%.%s]*") ~= nil
+    end
+
+    function Event.isEventBossAvailable()
+        local hrp = Event.getEventBossHRP()
+        if not hrp then return false end
+
+        local statusText = Event.getEventBossArenaStatusText()
+        if Event.isEventBossCooldownStatusText(statusText) then return false end
+        return Event.isEventBossActiveStatusText(statusText)
+    end
+
+    Event.isEventBossSpawned = Event.isEventBossAvailable
+
+    function Event.isInEventBossArena(root)
+        local arena = Event.getEventBossArenaBase()
+        if not root or not arena or not arena:IsA("BasePart") then return false end
+        local localPos = arena.CFrame:PointToObjectSpace(root.Position)
+        local half = arena.Size * 0.5
+        return math.abs(localPos.X) <= half.X
+            and math.abs(localPos.Y) <= half.Y + 8
+            and math.abs(localPos.Z) <= half.Z
+    end
+
+    function Event.setEventBossStatus(text, color)
+        local lbl = Event.eventBossStatusLabel
+        if lbl and lbl.Parent then
+            lbl.Text = text
+            lbl.TextColor3 = color or Core.C.textDim
+        end
+    end
+
+    function Event.canUseEventBossPriority()
+        return Core and Core.canUsePriority and Core.canUsePriority("boss")
+    end
+
+    function Event.stopEventBossFollow()
+        if Event.eventBossHeartbeat then
+            Event.eventBossHeartbeat:Disconnect()
+            Event.eventBossHeartbeat = nil
+        end
+    end
+
+    function Event.ensureEventBossFollow()
+        if Event.eventBossHeartbeat then return end
+        Event.eventBossHeartbeat = S.RunService.Heartbeat:Connect(function()
+            if not Core.alive or not Core.state[Event.EVENT_BOSS_STATE_KEY] then
+                Event.stopEventBossFollow()
+                return
+            end
+
+            if not Event.isEventBossAvailable() or not Event.canUseEventBossPriority() then
+                Event.stopEventBossFollow()
+                return
+            end
+
+            local bossRoot = Event.getEventBossHRP()
+            local root = Core.getRoot()
+            if not bossRoot or not root or not Event.isInEventBossArena(root) then
+                Event.stopEventBossFollow()
+                return
+            end
+
+            local character = Core.player.Character
+            local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+            if not humanoid then return end
+
+            local offset = root.Position - bossRoot.Position
+            local distance = offset.Magnitude
+            if distance > Event.EVENT_BOSS_FOLLOW_DISTANCE and distance > 0.1 then
+                local targetPos = bossRoot.Position + offset.Unit * Event.EVENT_BOSS_FOLLOW_DISTANCE
+                humanoid:MoveTo(targetPos)
+            end
+        end)
+    end
+
+    function Event.ensureEventBossAttackLoop()
+        if Event.eventBossAttackThread then return end
+        Event.eventBossAttacking = true
+        Event.eventBossAttackThread = task.spawn(function()
+            Core.debugLog("Auto Event Boss attack loop started")
+            while Core.alive and Core.state[Event.EVENT_BOSS_STATE_KEY] and Event.eventBossAttacking do
+                local boss = Event.getEventBossModel()
+                local root = Core.getRoot()
+                if boss and Event.isEventBossAvailable() and root and Event.isInEventBossArena(root) and Event.canUseEventBossPriority() then
+                    local remote = Core.getEquippedRemote()
+                    if remote then
+                        Core.setCurrentAction("Auto Event Boss", 2)
+                        pcall(function() remote:FireServer({boss}) end)
+                    end
+                end
+                task.wait(Core.getFastHitDelay(Core.BOSS_DELAY))
+            end
+            Event.eventBossAttackThread = nil
+            Event.eventBossAttacking = false
+            Core.clearCurrentAction("Auto Event Boss")
+            Core.debugLog("Auto Event Boss attack loop stopped")
+        end)
+    end
+
+    function Event.stopEventBossAttack()
+        Event.eventBossAttacking = false
+        if Core and Core.clearCurrentAction then
+            Core.clearCurrentAction("Auto Event Boss")
+        end
+    end
+
+    function Event.stopEventBoss()
+        Event.stopEventBossAttack()
+        Event.stopEventBossFollow()
+        if Core and Core.releasePriority then Core.releasePriority("boss") end
+        Event.setEventBossStatus("Event Boss: stopped", Core.C.textDim)
+    end
+
+    function Event.startEventBoss()
+        if Event.eventBossStatusThread then return end
+        Event.eventBossStatusThread = task.spawn(function()
+            Core.debugLog("Auto Event Boss loop started")
+            while Core.alive and Core.state[Event.EVENT_BOSS_STATE_KEY] do
+                local statusText = Event.getEventBossArenaStatusText()
+                local bossAvailable = Event.isEventBossAvailable()
+                local root = Core.getRoot()
+                local inArena = Event.isInEventBossArena(root)
+
+                if bossAvailable then
+                    if inArena then
+                        if Event.canUseEventBossPriority() then
+                            Core.claimPriority("boss")
+                            Event.ensureEventBossFollow()
+                            Event.ensureEventBossAttackLoop()
+                            Event.setEventBossStatus("Event Boss: spawned / following", Core.C.orange)
+                        else
+                            Event.stopEventBossFollow()
+                            Event.stopEventBossAttack()
+                            if os.clock() - Event.eventBossLastPriorityLog >= 3 then
+                                Event.eventBossLastPriorityLog = os.clock()
+                                Core.debugLog("Auto Event Boss paused by priority:", Core.priorityOwner or "idle")
+                            end
+                            Event.setEventBossStatus("Event Boss: waiting for priority", Core.C.textDim)
+                        end
+                    elseif Core.state[Event.EVENT_BOSS_TP_STATE_KEY] then
+                        Event.stopEventBossFollow()
+                        Event.stopEventBossAttack()
+                        if os.clock() - Event.eventBossLastTeleport >= Event.EVENT_BOSS_TP_COOLDOWN then
+                            Event.eventBossLastTeleport = os.clock()
+                            if Core.teleportWorld(Event.EVENT_BOSS_TP_CFRAME, "boss", function()
+                                return Core.alive
+                                    and Core.state[Event.EVENT_BOSS_STATE_KEY]
+                                    and Core.state[Event.EVENT_BOSS_TP_STATE_KEY]
+                                    and Event.isEventBossAvailable()
+                            end) then
+                                Event.setEventBossStatus("Event Boss: teleporting", Core.C.orange)
+                            end
+                        end
+                    else
+                        Event.stopEventBossFollow()
+                        Event.stopEventBossAttack()
+                        Core.releasePriority("boss")
+                        Event.setEventBossStatus("Event Boss: outside arena", Core.C.textDim)
+                    end
+                else
+                    Event.stopEventBossFollow()
+                    Event.stopEventBossAttack()
+                    Core.releasePriority("boss")
+                    Event.setEventBossStatus("Event Boss: " .. ((statusText and statusText ~= "") and statusText or "waiting for spawn"), Core.C.textDim)
+                end
+
+                task.wait(0.5)
+            end
+            Event.eventBossStatusThread = nil
+            Event.stopEventBoss()
+            Core.debugLog("Auto Event Boss loop stopped")
+        end)
     end
 
     function Event.getCollectCurrencyPickupRemote()
@@ -265,6 +519,8 @@ return function(HS, S)
         local amountText = Event.getEventCurrencyAmountText()
         local listingCount = countEntries(Event.getEventMerchantListings())
         local bossHRP = Event.getEventBossHRP()
+        local bossStatusText = Event.getEventBossArenaStatusText()
+        local bossAvailable = Event.isEventBossAvailable()
         local pickupRemote = Event.getCollectCurrencyPickupRemote()
         local pickupHolder = Event.getEventCurrencyHolder()
         local pickupChildren = pickupHolder and #pickupHolder:GetChildren() or nil
@@ -276,6 +532,8 @@ return function(HS, S)
             "EventsInfo: " .. (eventInfo and "found" or "missing"),
             "Merchant Listings: " .. (listingCount and tostring(listingCount) or "missing"),
             "Boss HRP: " .. (bossHRP and "found" or "missing"),
+            "Boss Status: " .. ((bossStatusText and bossStatusText ~= "") and bossStatusText or "unavailable"),
+            "Boss Available: " .. (bossAvailable and "Yes" or "No"),
             "Pickup Remote: " .. (pickupRemote and "found" or "missing"),
             "Pickup Holder: " .. (pickupHolder and "found" or "missing"),
             "Pickup Children: " .. (pickupChildren and tostring(pickupChildren) or "missing"),

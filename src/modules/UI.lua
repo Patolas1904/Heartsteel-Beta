@@ -558,6 +558,9 @@ return function(HS, S)
         elseif item.bind == "boss" then
             HS.Farming.bossStatusLabel = lbl
             HS.Farming.setBossStatus(item.text or "Boss: idle", C.textDim)
+        elseif item.bind == "event_boss" then
+            HS.Event.eventBossStatusLabel = lbl
+            HS.Event.setEventBossStatus(item.text or "Event Boss: idle", C.textDim)
         elseif item.bind == "merchant" then
             HS.Merchant.statusLabel = lbl
             HS.Merchant.setStatus(HS.Merchant.status or "waiting")
@@ -741,13 +744,13 @@ return function(HS, S)
         session = {
             title = "Session",
             items = {
-                {type="status", bind="session", text="No session loaded"},
-                {type="label", text="Event Status"},
-                {type="event_status"},
                 {type="action", label="Reset saved session", buttonText="RESET", danger=true,
                     callback=function()
                         HS.Session.resetNextStartup()
                     end},
+                {type="label", text="Event Status"},
+                {type="event_status"},
+                {type="status", bind="session", text="No session loaded"},
             },
         },
         standalone_scripts = {
@@ -944,16 +947,23 @@ return function(HS, S)
         event = {
             title = "Event",
             items = {
-                {type="event_status"},
                 {type="label", text="Currency"},
                 {type="toggle", key=HS.Event.CURRENCY_PICKUP_STATE_KEY, label="Auto Event Currency Pickup",
                     callback=function(on)
                         if on then HS.Event.startCurrencyPickup()
                         else HS.Event.stopCurrencyPickup() end
                     end},
-                {type="label", text="Foundations"},
-                {type="note", text="Event helpers are loaded for info, currency, merchant listings, shop upgrades, and boss paths."},
-                {type="note", text="Event Wheel is intentionally disabled until it is live."},
+                {type="label", text="Boss"},
+                {type="toggle", key=HS.Event.EVENT_BOSS_STATE_KEY, label="Auto Event Boss",
+                    callback=function(on)
+                        if on then HS.Event.startEventBoss()
+                        else HS.Event.stopEventBoss() end
+                    end},
+                {type="toggle", key=HS.Event.EVENT_BOSS_TP_STATE_KEY, label="Auto TP Event Boss", compact=true,
+                    callback=function(on)
+                        if on and Core.state[HS.Event.EVENT_BOSS_STATE_KEY] then HS.Event.startEventBoss() end
+                    end},
+                {type="status", bind="event_boss", text="Event Boss: idle"},
             },
         },
         pets = {
