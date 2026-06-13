@@ -7145,8 +7145,13 @@ do
         {key="event_merchant_buy_golden_pets", label="Auto Buy Event Merchant Golden Pets"},
         {key="event_merchant_buy_shiny_pets", label="Auto Buy Event Merchant Shiny Pets"},
         {key="event_merchant_buy_rainbow_pets", label="Auto Buy Event Merchant Rainbow Pets"},
-        {key="event_merchant_buy_charms", label="Auto Buy Event Merchant Charms"},
-        {key="event_merchant_buy_boosts", label="Auto Buy Event Merchant Boosts"},
+        {key="event_merchant_buy_shiny_charms", label="Auto Buy Event Merchant Shiny Charms"},
+        {key="event_merchant_buy_rainbow_charms", label="Auto Buy Event Merchant Rainbow Charms"},
+        {key="event_merchant_buy_void_charms", label="Auto Buy Event Merchant Void Charms"},
+        {key="event_merchant_buy_x5_crowns_boost", label="Auto Buy Event Merchant x5 Crowns Boost"},
+        {key="event_merchant_buy_x5_coins_boost", label="Auto Buy Event Merchant x5 Coins Boost"},
+        {key="event_merchant_buy_auto_sell_boost", label="Auto Buy Event Merchant Auto Sell Boost"},
+        {key="event_merchant_buy_shield_boost", label="Auto Buy Event Merchant Shield Boost"},
     }
     Event.EVENT_MERCHANT_TIER_KEYS = {
         ["4 Star"] = "event_merchant_buy_4_star",
@@ -7160,6 +7165,17 @@ do
         Golden = "event_merchant_buy_golden_pets",
         Shiny = "event_merchant_buy_shiny_pets",
         Rainbow = "event_merchant_buy_rainbow_pets",
+    }
+    Event.EVENT_MERCHANT_CHARM_KEYS = {
+        ShinyCharms = "event_merchant_buy_shiny_charms",
+        RainbowCharms = "event_merchant_buy_rainbow_charms",
+        VoidCharms = "event_merchant_buy_void_charms",
+    }
+    Event.EVENT_MERCHANT_BOOST_KEYS = {
+        x5CrownsTime = "event_merchant_buy_x5_crowns_boost",
+        x5CoinsTime = "event_merchant_buy_x5_coins_boost",
+        AutoSellTime = "event_merchant_buy_auto_sell_boost",
+        ShieldTime = "event_merchant_buy_shield_boost",
     }
     Event.EVENT_MERCHANT_PRICE_TIERS = {
         Normal = {[150]="4 Star", [300]="5 Star", [600]="Single Moon", [4500]="Double Moon", [50000]="Triple Moon"},
@@ -7325,10 +7341,12 @@ do
             return tierKey ~= nil and variantKey ~= nil
                 and Core.state[tierKey] == true
                 and Core.state[variantKey] == true
-        elseif itemType == "charms" or itemType == "charm" then
-            return Core.state.event_merchant_buy_charms == true
-        elseif itemType == "boosts" or itemType == "boost" then
-            return Core.state.event_merchant_buy_boosts == true
+        elseif listing.Type == "Charms" then
+            local key = Event.EVENT_MERCHANT_CHARM_KEYS[listing.Name]
+            return key ~= nil and Core.state[key] == true
+        elseif listing.Type == "Boosts" then
+            local key = Event.EVENT_MERCHANT_BOOST_KEYS[listing.Name]
+            return key ~= nil and Core.state[key] == true
         end
 
         return false
@@ -7447,8 +7465,14 @@ do
             items[#items + 1] = {type="toggle", key=filter.key, label=filter.label, callback=function() if Core.state[Event.EVENT_MERCHANT_STATE_KEY] then Event.startEventMerchant() end end}
         end
 
-        items[#items + 1] = {type="label", text="Other Items"}
-        for i = 10, #Event.EVENT_MERCHANT_FILTERS do
+        items[#items + 1] = {type="label", text="Charms"}
+        for i = 10, 12 do
+            local filter = Event.EVENT_MERCHANT_FILTERS[i]
+            items[#items + 1] = {type="toggle", key=filter.key, label=filter.label, callback=function() if Core.state[Event.EVENT_MERCHANT_STATE_KEY] then Event.startEventMerchant() end end}
+        end
+
+        items[#items + 1] = {type="label", text="Boosts"}
+        for i = 13, #Event.EVENT_MERCHANT_FILTERS do
             local filter = Event.EVENT_MERCHANT_FILTERS[i]
             items[#items + 1] = {type="toggle", key=filter.key, label=filter.label, callback=function() if Core.state[Event.EVENT_MERCHANT_STATE_KEY] then Event.startEventMerchant() end end}
         end
