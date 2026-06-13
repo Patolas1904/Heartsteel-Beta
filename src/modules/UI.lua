@@ -1152,11 +1152,11 @@ return function(HS, S)
         {key="Dungeon",  label="DUNGEON"},
         {key="merchant", label="MERCHANT"},
         {separator=true},
-        {key="misc",     label="MISC"},
         {key="event",    label="EVENT"},
         {key="event_merchant", label="EVENT MERCHANT"},
-        {key="logs",     label="☀ LOGS"},
         {separator=true},
+        {key="logs",     label="☀ LOGS"},
+        {key="misc",     label="MISC"},
         {key="session",  label="SESSION"},
         {key="standalone_scripts", label="STANDALONE", testingOnly=true},
     }
