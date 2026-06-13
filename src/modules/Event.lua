@@ -20,6 +20,15 @@ return function(HS, S)
     )
     Event.EVENT_BOSS_FOLLOW_DISTANCE = 14
     Event.EVENT_BOSS_TP_COOLDOWN = 3
+    Event.EVENT_UPGRADE_LIST = {
+        {type="Luck", key="event_upgrade_Luck", label="Auto Event Egg Luck"},
+        {type="EventCoinsMulti", key="event_upgrade_EventCoinsMulti", label="Auto More Seashells"},
+        {type="CrownMulti", key="event_upgrade_CrownMulti", label="Auto More Crowns"},
+        {type="EventSellMulti", key="event_upgrade_EventSellMulti", label="Auto Event Sell Boost"},
+        {type="BossHits", key="event_upgrade_BossHits", label="Auto Event Boss Hits"},
+        {type="EventStrengthMulti", key="event_upgrade_EventStrengthMulti", label="Auto Event Strength Boost"},
+        {type="EventSecretChance", key="event_upgrade_EventSecretChance", label="Auto Event Secret Luck"},
+    }
 
     Event.moduleCache = Event.moduleCache or {}
     Event.currencyPickupConnection = Event.currencyPickupConnection or nil
@@ -31,6 +40,8 @@ return function(HS, S)
     Event.eventBossAttacking = Event.eventBossAttacking or false
     Event.eventBossLastTeleport = Event.eventBossLastTeleport or 0
     Event.eventBossLastPriorityLog = Event.eventBossLastPriorityLog or 0
+    Event.lastUpgradeBuy = Event.lastUpgradeBuy or {}
+    Event.eventUpgradeThread = Event.eventUpgradeThread or nil
 
     local function getModulesFolder()
         local replicatedStorage = S.ReplicatedStorage
@@ -66,6 +77,10 @@ return function(HS, S)
         return requireModule("EventMerchantInfo")
     end
 
+    function Event.getUpgradeShopInfo()
+        return requireModule("EventUpgradeShop")
+    end
+
     function Event.getCurrentEventInfo()
         local eventsInfo = Event.getEventsInfo()
         local events = type(eventsInfo) == "table" and eventsInfo.Events or nil
@@ -87,6 +102,133 @@ return function(HS, S)
         local merchantInfo = Event.getEventMerchantInfo()
         local listings = type(merchantInfo) == "table" and merchantInfo.Listings or nil
         return type(listings) == "table" and listings or nil
+    end
+
+    function Event.getEventUpgradeStateKey(upgradeType)
+        for _, entry in ipairs(Event.EVENT_UPGRADE_LIST) do
+            if entry.type == upgradeType then return entry.key end
+        end
+        return nil
+    end
+
+    function Event.isKnownEventUpgrade(upgradeType)
+        return Event.getEventUpgradeStateKey(upgradeType) ~= nil
+    end
+
+    function Event.getEventUpgradeInfo(upgradeType)
+        if not Event.isKnownEventUpgrade(upgradeType) then return nil end
+        local shopInfo = Event.getUpgradeShopInfo()
+        return type(shopInfo) == "table" and shopInfo[upgradeType] or nil
+    end
+
+    function Event.getCurrentEventUpgradeLevel(upgradeType)
+        local dataManager = Core.getClientDataManager()
+        local Data = dataManager and dataManager.Data
+        local upgrades = Data and Data.EventUpgrades
+        return tonumber(upgrades and upgrades[upgradeType]) or 0
+    end
+
+    function Event.getNextEventUpgradeInfo(upgradeType)
+        local upgradeInfo = Event.getEventUpgradeInfo(upgradeType)
+        if type(upgradeInfo) ~= "table" then return nil, nil, "missing upgrade info" end
+
+        local upgrades = upgradeInfo.Upgrades
+        if type(upgrades) ~= "table" then return nil, nil, "missing upgrade levels" end
+
+        local currentLevel = Event.getCurrentEventUpgradeLevel(upgradeType)
+        local nextLevel = currentLevel + 1
+        return upgrades[nextLevel] or upgrades[tostring(nextLevel)], nextLevel, nil, currentLevel
+    end
+
+    function Event.getEventCoins()
+        local dataManager = Core.getClientDataManager()
+        local Data = dataManager and dataManager.Data
+        return tonumber(Data and Data.EventCoins) or 0
+    end
+
+    function Event.canBuyEventUpgrade(upgradeType)
+        local stateKey = Event.getEventUpgradeStateKey(upgradeType)
+        if not stateKey then return false, "invalid upgrade" end
+        if not Core.state[stateKey] then return false, "disabled" end
+
+        local nextInfo, nextLevel, reason, currentLevel = Event.getNextEventUpgradeInfo(upgradeType)
+        if reason then return false, reason, nextInfo, nextLevel, currentLevel end
+        if not nextInfo then return false, "maxed", nextInfo, nextLevel, currentLevel end
+
+        local cost = tonumber(nextInfo.Price)
+        if not cost then return false, "missing cost", nextInfo, nextLevel, currentLevel end
+
+        local eventCoins = Event.getEventCoins()
+        if eventCoins < cost then
+            return false, "not enough currency", nextInfo, nextLevel, currentLevel, cost, eventCoins
+        end
+
+        return true, "affordable", nextInfo, nextLevel, currentLevel, cost, eventCoins
+    end
+
+    function Event.setEventUpgradeToggleOff(upgradeType, reason)
+        local stateKey = Event.getEventUpgradeStateKey(upgradeType)
+        if not stateKey or Core.state[stateKey] == false then return end
+
+        Core.state[stateKey] = false
+        Core.debugLog("Event upgrade disabled:", upgradeType, reason or "stopped")
+        if HS.Session and HS.Session.save and not HS.Session.suppressSave then
+            pcall(HS.Session.save)
+        end
+        if HS.UI and HS.UI.renderContent and Core.activeTab == "event" then
+            pcall(HS.UI.renderContent)
+        end
+    end
+
+    function Event.buyEventUpgrade(upgradeType)
+        local canBuy, reason, _, nextLevel = Event.canBuyEventUpgrade(upgradeType)
+        if reason == "maxed" then
+            Event.setEventUpgradeToggleOff(upgradeType, "max level")
+            return false, reason
+        end
+        if not canBuy then return false, reason end
+        if not Core.UIActionRemote or type(nextLevel) ~= "number" then return false, "missing remote or level" end
+
+        local buyKey = tostring(upgradeType) .. ":" .. tostring(nextLevel)
+        local now = os.clock()
+        if now - (Event.lastUpgradeBuy[buyKey] or 0) < 1 then
+            return false, "debounced"
+        end
+
+        Event.lastUpgradeBuy[buyKey] = now
+        Core.debugLog("Buying event upgrade", upgradeType, "level", nextLevel)
+        Core.UIActionRemote:FireServer(Event.getEventUpgradeBuyAction(), upgradeType, nextLevel)
+        return true, "bought"
+    end
+
+    function Event.hasEnabledEventUpgrade()
+        for _, entry in ipairs(Event.EVENT_UPGRADE_LIST) do
+            if Core.state[entry.key] == true then return true end
+        end
+        return false
+    end
+
+    function Event.runAutoEventUpgrades()
+        if Event.eventUpgradeThread or not Event.hasEnabledEventUpgrade() then return end
+
+        Event.eventUpgradeThread = task.spawn(function()
+            Core.debugLog("Auto Event Upgrades loop started")
+            while Core.alive and Event.hasEnabledEventUpgrade() do
+                for _, entry in ipairs(Event.EVENT_UPGRADE_LIST) do
+                    if Core.state[entry.key] == true then
+                        local bought = Event.buyEventUpgrade(entry.type)
+                        if bought then break end
+                    end
+                end
+                task.wait(Core.BUY_DELAY or 2)
+            end
+            Event.eventUpgradeThread = nil
+            if Core.alive and Event.hasEnabledEventUpgrade() then
+                Event.runAutoEventUpgrades()
+            else
+                Core.debugLog("Auto Event Upgrades loop stopped")
+            end
+        end)
     end
 
     function Event.getEventBossHRP()
