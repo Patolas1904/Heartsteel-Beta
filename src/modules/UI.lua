@@ -959,6 +959,10 @@ return function(HS, S)
                         if on then HS.Event.startEventBoss()
                         else HS.Event.stopEventBoss() end
                     end},
+                {type="toggle", key=HS.Event.EVENT_BOSS_TP_STATE_KEY, label="Auto TP Event Boss", compact=true,
+                    callback=function(on)
+                        if on and Core.state[HS.Event.EVENT_BOSS_STATE_KEY] then HS.Event.startEventBoss() end
+                    end},
                 {type="label", text="Upgrades"},
                 {type="toggle", key="event_upgrade_Luck", label="Auto Event Egg Luck",
                     callback=function() HS.Event.runAutoEventUpgrades() end},
