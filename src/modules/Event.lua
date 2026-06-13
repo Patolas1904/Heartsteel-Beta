@@ -15,6 +15,9 @@ return function(HS, S)
     Event.EVENT_MERCHANT_STATE_KEY = "event_merchant_enabled"
     Event.EVENT_MERCHANT_BUY_DELAY = 1
     Event.EVENT_MERCHANT_CLICK_DELAY = 0.15
+    Event.AUTO_EQUIP_BEST_PET_STATE_KEY = "event_auto_equip_best_pet"
+    Event.AUTO_EQUIP_BEST_PET_DELAY = 10
+    Event.AUTO_EQUIP_BEST_PET_DEBOUNCE = 5
     Event.EVENT_EGG_OPEN_STATE_KEY = "event_egg_auto_open_week1_gl_egg"
     Event.EVENT_EGG_TP_STATE_KEY = "event_egg_auto_tp"
     Event.EVENT_EGG_WEEK1_NAME = "GL Egg"
@@ -107,6 +110,7 @@ return function(HS, S)
     Event.eventMerchantStatusLabel = Event.eventMerchantStatusLabel or nil
     Event.eventMerchantStatus = Event.eventMerchantStatus or "idle"
     Event.lastEventMerchantBuy = Event.lastEventMerchantBuy or {}
+    Event.lastAutoEquipBestPet = Event.lastAutoEquipBestPet or 0
     Event.eventEggLastTeleport = Event.eventEggLastTeleport or 0
 
     local function getModulesFolder()
@@ -168,6 +172,30 @@ return function(HS, S)
         local merchantInfo = Event.getEventMerchantInfo()
         local listings = type(merchantInfo) == "table" and merchantInfo.Listings or nil
         return type(listings) == "table" and listings or nil
+    end
+
+    function Event.equipBestEventPet()
+        if not Core.alive or not Core.state[Event.AUTO_EQUIP_BEST_PET_STATE_KEY] then return false end
+        if not Core.UIActionRemote then return false end
+
+        local now = os.clock()
+        if now - (Event.lastAutoEquipBestPet or 0) < Event.AUTO_EQUIP_BEST_PET_DEBOUNCE then
+            return false
+        end
+
+        Event.lastAutoEquipBestPet = now
+        pcall(function()
+            Core.UIActionRemote:FireServer("EquipBestPets", true)
+        end)
+        return true
+    end
+
+    function Event.startAutoEquipBestEventPet()
+        Core.loopWhile(Event.AUTO_EQUIP_BEST_PET_STATE_KEY, Event.AUTO_EQUIP_BEST_PET_DELAY, Event.equipBestEventPet)
+    end
+
+    function Event.stopAutoEquipBestEventPet()
+        Event.lastAutoEquipBestPet = 0
     end
 
     function Event.getSummerEventMap()

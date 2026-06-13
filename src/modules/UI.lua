@@ -981,6 +981,12 @@ return function(HS, S)
                     callback=function() HS.Event.runAutoEventUpgrades() end},
                 {type="toggle", key="event_upgrade_EventSecretChance", label="Auto Event Secret Luck",
                     callback=function() HS.Event.runAutoEventUpgrades() end},
+                {type="label", text="Pets"},
+                {type="toggle", key=HS.Event.AUTO_EQUIP_BEST_PET_STATE_KEY, label="Auto Equip Best Event Pet",
+                    callback=function(on)
+                        if on then HS.Event.startAutoEquipBestEventPet()
+                        else HS.Event.stopAutoEquipBestEventPet() end
+                    end},
             },
         },
         event_egg = {
