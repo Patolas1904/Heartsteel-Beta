@@ -12,6 +12,9 @@ return function(HS, S)
     Event.CURRENCY_PICKUP_DELAY = 0.05
     Event.EVENT_BOSS_STATE_KEY = "event_boss"
     Event.EVENT_BOSS_TP_STATE_KEY = "event_boss_tp"
+    Event.EVENT_MERCHANT_STATE_KEY = "event_merchant_enabled"
+    Event.EVENT_MERCHANT_BUY_DELAY = 1
+    Event.EVENT_MERCHANT_CLICK_DELAY = 0.15
     Event.EVENT_BOSS_TP_CFRAME = CFrame.new(
         1021.30432, 89.4617004, 1521.46338,
         -0.734982431, -5.48722916e-08, -0.678086162,
@@ -29,6 +32,38 @@ return function(HS, S)
         {type="EventStrengthMulti", key="event_upgrade_EventStrengthMulti", label="Auto Event Strength Boost"},
         {type="EventSecretChance", key="event_upgrade_EventSecretChance", label="Auto Event Secret Luck"},
     }
+    Event.EVENT_MERCHANT_FILTERS = {
+        {key="event_merchant_buy_4_star", label="Auto Buy Event Merchant 4 Star"},
+        {key="event_merchant_buy_5_star", label="Auto Buy Event Merchant 5 Star"},
+        {key="event_merchant_buy_single_moon", label="Auto Buy Event Merchant Single Moon"},
+        {key="event_merchant_buy_double_moon", label="Auto Buy Event Merchant Double Moon"},
+        {key="event_merchant_buy_triple_moon", label="Auto Buy Event Merchant Triple Moon"},
+        {key="event_merchant_buy_normal_pets", label="Auto Buy Event Merchant Normal Pets"},
+        {key="event_merchant_buy_golden_pets", label="Auto Buy Event Merchant Golden Pets"},
+        {key="event_merchant_buy_shiny_pets", label="Auto Buy Event Merchant Shiny Pets"},
+        {key="event_merchant_buy_rainbow_pets", label="Auto Buy Event Merchant Rainbow Pets"},
+        {key="event_merchant_buy_charms", label="Auto Buy Event Merchant Charms"},
+        {key="event_merchant_buy_boosts", label="Auto Buy Event Merchant Boosts"},
+    }
+    Event.EVENT_MERCHANT_TIER_KEYS = {
+        ["4 Star"] = "event_merchant_buy_4_star",
+        ["5 Star"] = "event_merchant_buy_5_star",
+        ["Single Moon"] = "event_merchant_buy_single_moon",
+        ["Double Moon"] = "event_merchant_buy_double_moon",
+        ["Triple Moon"] = "event_merchant_buy_triple_moon",
+    }
+    Event.EVENT_MERCHANT_VARIANT_KEYS = {
+        Normal = "event_merchant_buy_normal_pets",
+        Golden = "event_merchant_buy_golden_pets",
+        Shiny = "event_merchant_buy_shiny_pets",
+        Rainbow = "event_merchant_buy_rainbow_pets",
+    }
+    Event.EVENT_MERCHANT_PRICE_TIERS = {
+        Normal = {[150]="4 Star", [300]="5 Star", [600]="Single Moon", [4500]="Double Moon", [50000]="Triple Moon"},
+        Golden = {[300]="4 Star", [600]="5 Star", [1200]="Single Moon", [9000]="Double Moon", [100000]="Triple Moon"},
+        Shiny = {[600]="4 Star", [1200]="5 Star", [2250]="Single Moon", [20000]="Double Moon", [180000]="Triple Moon"},
+        Rainbow = {[1200]="4 Star", [2250]="5 Star", [4500]="Single Moon"},
+    }
 
     Event.moduleCache = Event.moduleCache or {}
     Event.currencyPickupConnection = Event.currencyPickupConnection or nil
@@ -42,6 +77,9 @@ return function(HS, S)
     Event.eventBossLastPriorityLog = Event.eventBossLastPriorityLog or 0
     Event.lastUpgradeBuy = Event.lastUpgradeBuy or {}
     Event.eventUpgradeThread = Event.eventUpgradeThread or nil
+    Event.eventMerchantStatusLabel = Event.eventMerchantStatusLabel or nil
+    Event.eventMerchantStatus = Event.eventMerchantStatus or "idle"
+    Event.lastEventMerchantBuy = Event.lastEventMerchantBuy or {}
 
     local function getModulesFolder()
         local replicatedStorage = S.ReplicatedStorage
@@ -102,6 +140,217 @@ return function(HS, S)
         local merchantInfo = Event.getEventMerchantInfo()
         local listings = type(merchantInfo) == "table" and merchantInfo.Listings or nil
         return type(listings) == "table" and listings or nil
+    end
+
+    function Event.setEventMerchantStatus(text)
+        Event.eventMerchantStatus = text or Event.eventMerchantStatus or "idle"
+        local lbl = Event.eventMerchantStatusLabel
+        if lbl and lbl.Parent then
+            lbl.Text = "Event Merchant: " .. Event.eventMerchantStatus
+        end
+    end
+
+    function Event.getEventMerchantData()
+        local dataManager = Core.getClientDataManager()
+        local Data = dataManager and dataManager.Data
+        local eventMerchant = Data and Data.EventMerchant
+        return Data, eventMerchant
+    end
+
+    function Event.getSortedEventMerchantSlots(items)
+        local slots = {}
+        if type(items) ~= "table" then return slots end
+        for slotIndex, slotData in pairs(items) do
+            if type(slotData) == "table" then
+                local numericSlot = tonumber(slotIndex)
+                if numericSlot then
+                    slots[#slots + 1] = {slot=numericSlot, data=slotData}
+                end
+            end
+        end
+        table.sort(slots, function(a, b) return a.slot < b.slot end)
+        return slots
+    end
+
+    function Event.getEventMerchantListing(listingIndex)
+        local listings = Event.getEventMerchantListings()
+        if type(listings) ~= "table" then return nil end
+        return listings[listingIndex] or listings[tostring(listingIndex)]
+    end
+
+    function Event.getEventMerchantVariant(listing)
+        local class = tostring(type(listing) == "table" and listing.Class or "")
+        if class == "" or class == "nil" then return "Normal" end
+        local lower = class:lower()
+        if lower:find("golden", 1, true) or lower:find("gold", 1, true) then return "Golden" end
+        if lower:find("shiny", 1, true) then return "Shiny" end
+        if lower:find("rainbow", 1, true) then return "Rainbow" end
+        return "Normal"
+    end
+
+    function Event.normalizeEventMerchantTier(value)
+        local text = tostring(value or ""):lower()
+        if text == "" then return nil end
+        if text:find("triple", 1, true) or text:find("3 moon", 1, true) or text:find("3moon", 1, true) then return "Triple Moon" end
+        if text:find("double", 1, true) or text:find("2 moon", 1, true) or text:find("2moon", 1, true) then return "Double Moon" end
+        if text:find("single", 1, true) or text:find("1 moon", 1, true) or text:find("1moon", 1, true) or text == "moon" then return "Single Moon" end
+        if text:find("5", 1, true) and text:find("star", 1, true) then return "5 Star" end
+        if text:find("4", 1, true) and text:find("star", 1, true) then return "4 Star" end
+        return nil
+    end
+
+    function Event.getEventMerchantPetTier(listing)
+        if type(listing) ~= "table" then return nil end
+        local direct = Event.normalizeEventMerchantTier(listing.Tier or listing.Rarity or listing.PetTier or listing.RarityName)
+        if direct then return direct end
+
+        local variant = Event.getEventMerchantVariant(listing)
+        local price = tonumber(listing.EventCoinsPrice)
+        local prices = Event.EVENT_MERCHANT_PRICE_TIERS[variant]
+        return prices and prices[price] or nil
+    end
+
+    function Event.eventMerchantListingMatchesFilters(listing)
+        if type(listing) ~= "table" then return false end
+        local itemType = tostring(listing.Type or ""):lower()
+
+        if itemType == "pets" or itemType == "pet" then
+            local tier = Event.getEventMerchantPetTier(listing)
+            local variant = Event.getEventMerchantVariant(listing)
+            local tierKey = tier and Event.EVENT_MERCHANT_TIER_KEYS[tier]
+            local variantKey = variant and Event.EVENT_MERCHANT_VARIANT_KEYS[variant]
+            return tierKey ~= nil and variantKey ~= nil
+                and Core.state[tierKey] == true
+                and Core.state[variantKey] == true
+        elseif itemType == "charms" or itemType == "charm" then
+            return Core.state.event_merchant_buy_charms == true
+        elseif itemType == "boosts" or itemType == "boost" then
+            return Core.state.event_merchant_buy_boosts == true
+        end
+
+        return false
+    end
+
+    function Event.canBuyEventMerchantSlot(slotInfo, Data, eventMerchant)
+        if not Core.state[Event.EVENT_MERCHANT_STATE_KEY] then return false, "disabled" end
+        if type(slotInfo) ~= "table" or type(slotInfo.data) ~= "table" then return false, "missing slot" end
+        if type(eventMerchant) ~= "table" then return false, "missing data" end
+
+        local slotIndex = tonumber(slotInfo.slot)
+        local resetDT = eventMerchant.ResetDT
+        if not slotIndex or resetDT == nil then return false, "missing reset" end
+
+        local slotData = slotInfo.data
+        local buysLeft = tonumber(slotData.BuysLeft) or 0
+        if buysLeft <= 0 then return false, "sold out" end
+
+        local listingIndex = tonumber(slotData.Index) or slotData.Index
+        local listing = Event.getEventMerchantListing(listingIndex)
+        if type(listing) ~= "table" then return false, "missing listing" end
+        if not Event.eventMerchantListingMatchesFilters(listing) then return false, "filtered", listing end
+
+        local price = tonumber(listing.EventCoinsPrice)
+        if not price then return false, "missing price", listing end
+
+        local eventCoins = tonumber(Data and Data.EventCoins) or 0
+        if eventCoins < price then return false, "not enough Seashells", listing, price, eventCoins end
+
+        return true, "buy", listing, price, eventCoins, slotIndex, resetDT, listingIndex
+    end
+
+    function Event.buyEventMerchantSlot(slotInfo, Data, eventMerchant)
+        local canBuy, reason, listing, _, _, slotIndex, resetDT, listingIndex = Event.canBuyEventMerchantSlot(slotInfo, Data, eventMerchant)
+        if not canBuy then return false, reason end
+
+        local buyKey = tostring(slotIndex) .. ":" .. tostring(resetDT) .. ":" .. tostring(listingIndex)
+        local now = os.clock()
+        if now - (Event.lastEventMerchantBuy[buyKey] or 0) < 1 then
+            return false, "debounced"
+        end
+
+        Event.lastEventMerchantBuy[buyKey] = now
+        Event.setEventMerchantStatus("buying " .. tostring(listing.Name or "item"))
+        Core.setCurrentAction("Buying Event Merchant Items", math.max(2, Event.EVENT_MERCHANT_CLICK_DELAY + 1))
+        Core.UIActionRemote:FireServer(Event.getEventMerchantBuyAction(), slotIndex, resetDT)
+        task.wait(Event.EVENT_MERCHANT_CLICK_DELAY)
+        Core.clearCurrentAction("Buying Event Merchant Items")
+        return true, "bought"
+    end
+
+    function Event.buySelectedEventMerchant()
+        local Data, eventMerchant = Event.getEventMerchantData()
+        local slots = eventMerchant and Event.getSortedEventMerchantSlots(eventMerchant.Items)
+        if type(eventMerchant) ~= "table" or not slots or #slots == 0 then
+            Event.setEventMerchantStatus("missing data")
+            return
+        end
+        if eventMerchant.ResetDT == nil then
+            Event.setEventMerchantStatus("missing reset")
+            return
+        end
+        if not Event.getEventMerchantListings() then
+            Event.setEventMerchantStatus("missing listings")
+            return
+        end
+
+        local sawSoldOut = false
+        local sawFiltered = false
+        local sawUnaffordable = false
+        for _, slotInfo in ipairs(slots) do
+            if not Core.alive or not Core.state[Event.EVENT_MERCHANT_STATE_KEY] then break end
+
+            local bought, reason = Event.buyEventMerchantSlot(slotInfo, Data, eventMerchant)
+            if bought then return end
+            if reason == "sold out" then sawSoldOut = true end
+            if reason == "filtered" then sawFiltered = true end
+            if reason == "not enough Seashells" then sawUnaffordable = true end
+        end
+
+        if sawUnaffordable then
+            Event.setEventMerchantStatus("not enough Seashells")
+        elseif sawFiltered then
+            Event.setEventMerchantStatus("waiting")
+        elseif sawSoldOut then
+            Event.setEventMerchantStatus("sold out")
+        else
+            Event.setEventMerchantStatus("waiting")
+        end
+    end
+
+    function Event.startEventMerchant()
+        Event.setEventMerchantStatus("waiting")
+        Core.loopWhile(Event.EVENT_MERCHANT_STATE_KEY, Event.EVENT_MERCHANT_BUY_DELAY, Event.buySelectedEventMerchant)
+    end
+
+    function Event.getEventMerchantUiItems()
+        local items = {
+            {type="toggle", key=Event.EVENT_MERCHANT_STATE_KEY, label="Auto Event Merchant",
+                callback=function(on)
+                    if on then Event.startEventMerchant()
+                    else Event.setEventMerchantStatus("idle") end
+                end},
+            {type="status", bind="event_merchant", text="Event Merchant: idle"},
+            {type="label", text="Pet Tiers"},
+        }
+
+        for i = 1, 5 do
+            local filter = Event.EVENT_MERCHANT_FILTERS[i]
+            items[#items + 1] = {type="toggle", key=filter.key, label=filter.label, callback=function() if Core.state[Event.EVENT_MERCHANT_STATE_KEY] then Event.startEventMerchant() end end}
+        end
+
+        items[#items + 1] = {type="label", text="Pet Variants"}
+        for i = 6, 9 do
+            local filter = Event.EVENT_MERCHANT_FILTERS[i]
+            items[#items + 1] = {type="toggle", key=filter.key, label=filter.label, callback=function() if Core.state[Event.EVENT_MERCHANT_STATE_KEY] then Event.startEventMerchant() end end}
+        end
+
+        items[#items + 1] = {type="label", text="Other Items"}
+        for i = 10, #Event.EVENT_MERCHANT_FILTERS do
+            local filter = Event.EVENT_MERCHANT_FILTERS[i]
+            items[#items + 1] = {type="toggle", key=filter.key, label=filter.label, callback=function() if Core.state[Event.EVENT_MERCHANT_STATE_KEY] then Event.startEventMerchant() end end}
+        end
+
+        return items
     end
 
     function Event.getEventUpgradeStateKey(upgradeType)

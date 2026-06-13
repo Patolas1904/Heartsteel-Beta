@@ -561,6 +561,9 @@ return function(HS, S)
         elseif item.bind == "event_boss" then
             HS.Event.eventBossStatusLabel = lbl
             HS.Event.setEventBossStatus(item.text or "Event Boss: idle", C.textDim)
+        elseif item.bind == "event_merchant" then
+            HS.Event.eventMerchantStatusLabel = lbl
+            HS.Event.setEventMerchantStatus(HS.Event.eventMerchantStatus or "idle")
         elseif item.bind == "merchant" then
             HS.Merchant.statusLabel = lbl
             HS.Merchant.setStatus(HS.Merchant.status or "waiting")
@@ -980,6 +983,10 @@ return function(HS, S)
                     callback=function() HS.Event.runAutoEventUpgrades() end},
             },
         },
+        event_merchant = {
+            title = "Event Merchant",
+            items = HS.Event.getEventMerchantUiItems(),
+        },
         pets = {
             title = "Hatchery & Petdex",
             items = {
@@ -1143,11 +1150,13 @@ return function(HS, S)
         {key="clan",     label="CLAN"},
         {key="pets",     label="PETS"},
         {key="Dungeon",  label="DUNGEON"},
-        {key="event",    label="EVENT"},
         {key="merchant", label="MERCHANT"},
-        {key="logs",     label="☀ LOGS"},
         {separator=true},
         {key="misc",     label="MISC"},
+        {key="event",    label="EVENT"},
+        {key="event_merchant", label="EVENT MERCHANT"},
+        {key="logs",     label="☀ LOGS"},
+        {separator=true},
         {key="session",  label="SESSION"},
         {key="standalone_scripts", label="STANDALONE", testingOnly=true},
     }
