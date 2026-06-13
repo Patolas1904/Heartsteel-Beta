@@ -7309,66 +7309,28 @@ do
         return summerEvent and summerEvent:FindFirstChild("Map") or nil
     end
 
-    function Event.getEventEggAreaBasePart(obj)
-        if typeof(obj) ~= "Instance" then return nil end
-        if not obj then return nil end
-        if obj:IsA("BasePart") then return obj end
-        if obj:IsA("Model") then
-            local primary = obj.PrimaryPart
-            if primary and primary:IsA("BasePart") then return primary end
-        end
-        return obj:FindFirstChildWhichIsA("BasePart", true)
-    end
-
-    function Event.findNamedEventEggArea(map)
-        if not map then return nil end
-        local preferredNames = {
-            "GLEggArea",
-            "GLEggZone",
-            "GLEggCube",
-            "EventEggArea",
-            "EventEggZone",
-            "EventEggCube",
-            "Week1EggArea",
-            "Week1EggZone",
-        }
-        for _, name in ipairs(preferredNames) do
-            local found = map:FindFirstChild(name, true)
-            local part = Event.getEventEggAreaBasePart(found)
-            if part then return part end
-        end
-        for _, child in ipairs(map:GetDescendants()) do
-            if child:IsA("BasePart") then
-                local lower = child.Name:lower()
-                if lower:find("egg", 1, true)
-                    and (lower:find("gl", 1, true) or lower:find("event", 1, true) or lower:find("week", 1, true)) then
-                    return child
-                end
-            end
-        end
-        return nil
+    function Event.isPointInsideEventEggPart(part, position)
+        if not part or not part:IsA("BasePart") or typeof(position) ~= "Vector3" then return false end
+        local localPos = part.CFrame:PointToObjectSpace(position)
+        local half = part.Size * 0.5
+        return math.abs(localPos.X) <= half.X
+            and math.abs(localPos.Y) <= half.Y + 8
+            and math.abs(localPos.Z) <= half.Z
     end
 
     function Event.getEventEggAreaPart()
         local map = Event.getSummerEventMap()
         if not map then return nil end
-
-        local named = Event.findNamedEventEggArea(map)
-        if named then return named end
-
-        local children = map:GetChildren()
-        return Event.getEventEggAreaBasePart(children[33])
+        local eggStand = map:FindFirstChild("Egg Stand")
+        local floor = eggStand and eggStand:FindFirstChild("Floor")
+        return floor and floor:IsA("BasePart") and floor or nil
     end
 
     function Event.isInsideEventEggArea(root)
         root = root or Core.getRoot()
+        if not root then return false end
         local area = Event.getEventEggAreaPart()
-        if not root or not area then return false end
-        local localPos = area.CFrame:PointToObjectSpace(root.Position)
-        local half = area.Size * 0.5
-        return math.abs(localPos.X) <= half.X
-            and math.abs(localPos.Y) <= half.Y + 8
-            and math.abs(localPos.Z) <= half.Z
+        return area and Event.isPointInsideEventEggPart(area, root.Position) or false
     end
 
     function Event.shouldContinueEventEggOpen()
@@ -7390,7 +7352,6 @@ do
 
     function Event.openWeek1EventEgg()
         if not Event.shouldContinueEventEggOpen() then return end
-        if not Event.getEventEggAreaPart() then return end
 
         if not Event.isInsideEventEggArea() then
             if Core.state[Event.EVENT_EGG_TP_STATE_KEY] then
