@@ -447,6 +447,7 @@ return function(HS, S)
         if reason == "boss" then return "boss" end
         if reason == "auto cycle" then return "auto_cycle" end
         if reason == "pet shop" then return "eggs" end
+        if reason == "event egg" then return "eggs" end
         if reason == "king" then return "king" end
         return nil
     end

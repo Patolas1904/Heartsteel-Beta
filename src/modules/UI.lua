@@ -983,6 +983,21 @@ return function(HS, S)
                     callback=function() HS.Event.runAutoEventUpgrades() end},
             },
         },
+        event_egg = {
+            title = "Event Egg",
+            items = {
+                {type="label", text="Week 1"},
+                {type="toggle", key=HS.Event.EVENT_EGG_OPEN_STATE_KEY, label="Auto Open Week 1 Event Egg",
+                    callback=function(on)
+                        if on then HS.Event.startEventEggOpen()
+                        else HS.Event.stopEventEggOpen() end
+                    end},
+                {type="toggle", key=HS.Event.EVENT_EGG_TP_STATE_KEY, label="Auto TP Event Egg", compact=true,
+                    callback=function(on)
+                        if on and Core.state[HS.Event.EVENT_EGG_OPEN_STATE_KEY] then HS.Event.startEventEggOpen() end
+                    end},
+            },
+        },
         event_merchant = {
             title = "Event Merchant",
             items = HS.Event.getEventMerchantUiItems(),
@@ -1152,11 +1167,12 @@ return function(HS, S)
         {key="Dungeon",  label="DUNGEON"},
         {key="merchant", label="MERCHANT"},
         {separator=true},
-        {key="event",    label="EVENT"},
-        {key="event_merchant", label="EVENT MERCHANT"},
-        {separator=true},
-        {key="logs",     label="☀ LOGS"},
         {key="misc",     label="MISC"},
+        {key="event",    label="EVENT"},
+        {key="event_egg", label="EVENT EGG"},
+        {key="event_merchant", label="EVENT MERCHANT"},
+        {key="logs",     label="☀ LOGS"},
+        {separator=true},
         {key="session",  label="SESSION"},
         {key="standalone_scripts", label="STANDALONE", testingOnly=true},
     }

@@ -15,6 +15,17 @@ return function(HS, S)
     Event.EVENT_MERCHANT_STATE_KEY = "event_merchant_enabled"
     Event.EVENT_MERCHANT_BUY_DELAY = 1
     Event.EVENT_MERCHANT_CLICK_DELAY = 0.15
+    Event.EVENT_EGG_OPEN_STATE_KEY = "event_egg_auto_open_week1_gl_egg"
+    Event.EVENT_EGG_TP_STATE_KEY = "event_egg_auto_tp"
+    Event.EVENT_EGG_WEEK1_NAME = "GL Egg"
+    Event.EVENT_EGG_HATCH_DELAY = (HS.EggOpener and HS.EggOpener.HATCH_DELAY) or 0.35
+    Event.EVENT_EGG_TELEPORT_DELAY = (HS.PetdexFarm and HS.PetdexFarm.TELEPORT_DELAY) or 1.0
+    Event.EVENT_EGG_TP_CFRAME = CFrame.new(
+        824.292236, 83.591301, 1408.22717,
+        -0.983073473, 5.67926506e-08, 0.183211744,
+        5.20563184e-08, 1, -3.06610595e-08,
+        -0.183211744, -2.06047446e-08, -0.983073473
+    )
     Event.EVENT_BOSS_TP_CFRAME = CFrame.new(
         1021.30432, 89.4617004, 1521.46338,
         -0.734982431, -5.48722916e-08, -0.678086162,
@@ -96,6 +107,7 @@ return function(HS, S)
     Event.eventMerchantStatusLabel = Event.eventMerchantStatusLabel or nil
     Event.eventMerchantStatus = Event.eventMerchantStatus or "idle"
     Event.lastEventMerchantBuy = Event.lastEventMerchantBuy or {}
+    Event.eventEggLastTeleport = Event.eventEggLastTeleport or 0
 
     local function getModulesFolder()
         local replicatedStorage = S.ReplicatedStorage
@@ -156,6 +168,124 @@ return function(HS, S)
         local merchantInfo = Event.getEventMerchantInfo()
         local listings = type(merchantInfo) == "table" and merchantInfo.Listings or nil
         return type(listings) == "table" and listings or nil
+    end
+
+    function Event.getSummerEventMap()
+        local gameplay = workspace:FindFirstChild("Gameplay")
+        local regionsLoaded = gameplay and gameplay:FindFirstChild("RegionsLoaded")
+        local summerEvent = regionsLoaded and regionsLoaded:FindFirstChild("SummerEvent26")
+        return summerEvent and summerEvent:FindFirstChild("Map") or nil
+    end
+
+    function Event.getEventEggAreaBasePart(obj)
+        if typeof(obj) ~= "Instance" then return nil end
+        if not obj then return nil end
+        if obj:IsA("BasePart") then return obj end
+        if obj:IsA("Model") then
+            local primary = obj.PrimaryPart
+            if primary and primary:IsA("BasePart") then return primary end
+        end
+        return obj:FindFirstChildWhichIsA("BasePart", true)
+    end
+
+    function Event.findNamedEventEggArea(map)
+        if not map then return nil end
+        local preferredNames = {
+            "GLEggArea",
+            "GLEggZone",
+            "GLEggCube",
+            "EventEggArea",
+            "EventEggZone",
+            "EventEggCube",
+            "Week1EggArea",
+            "Week1EggZone",
+        }
+        for _, name in ipairs(preferredNames) do
+            local found = map:FindFirstChild(name, true)
+            local part = Event.getEventEggAreaBasePart(found)
+            if part then return part end
+        end
+        for _, child in ipairs(map:GetDescendants()) do
+            if child:IsA("BasePart") then
+                local lower = child.Name:lower()
+                if lower:find("egg", 1, true)
+                    and (lower:find("gl", 1, true) or lower:find("event", 1, true) or lower:find("week", 1, true)) then
+                    return child
+                end
+            end
+        end
+        return nil
+    end
+
+    function Event.getEventEggAreaPart()
+        local map = Event.getSummerEventMap()
+        if not map then return nil end
+
+        local named = Event.findNamedEventEggArea(map)
+        if named then return named end
+
+        local children = map:GetChildren()
+        return Event.getEventEggAreaBasePart(children[33])
+    end
+
+    function Event.isInsideEventEggArea(root)
+        root = root or Core.getRoot()
+        local area = Event.getEventEggAreaPart()
+        if not root or not area then return false end
+        local localPos = area.CFrame:PointToObjectSpace(root.Position)
+        local half = area.Size * 0.5
+        return math.abs(localPos.X) <= half.X
+            and math.abs(localPos.Y) <= half.Y + 8
+            and math.abs(localPos.Z) <= half.Z
+    end
+
+    function Event.shouldContinueEventEggOpen()
+        return Core.alive and Core.state[Event.EVENT_EGG_OPEN_STATE_KEY] == true
+    end
+
+    function Event.teleportToEventEgg()
+        if not Event.getEventEggAreaPart() then return false end
+        if Event.isInsideEventEggArea() then return true end
+        if not Core.state[Event.EVENT_EGG_TP_STATE_KEY] then return false end
+        if os.clock() - (Event.eventEggLastTeleport or 0) < Event.EVENT_EGG_TELEPORT_DELAY then return false end
+
+        Event.eventEggLastTeleport = os.clock()
+        return Core.teleportWorld(Event.EVENT_EGG_TP_CFRAME, "event egg", function()
+            return Event.shouldContinueEventEggOpen()
+                and Core.state[Event.EVENT_EGG_TP_STATE_KEY] == true
+        end)
+    end
+
+    function Event.openWeek1EventEgg()
+        if not Event.shouldContinueEventEggOpen() then return end
+        if not Event.getEventEggAreaPart() then return end
+
+        if not Event.isInsideEventEggArea() then
+            if Core.state[Event.EVENT_EGG_TP_STATE_KEY] then
+                Event.teleportToEventEgg()
+            end
+            return
+        end
+
+        if not Core.waitForPriority("eggs", Event.shouldContinueEventEggOpen) then return end
+        if not Event.isInsideEventEggArea() then return end
+        if not Core.claimPriority("eggs") then return end
+
+        Core.setCurrentAction("Opening Event Egg", math.max(2, Event.EVENT_EGG_HATCH_DELAY + 1))
+        pcall(function()
+            Core.UIActionRemote:FireServer("BuyEgg", Event.EVENT_EGG_WEEK1_NAME)
+        end)
+    end
+
+    function Event.startEventEggOpen()
+        Core.loopWhile(Event.EVENT_EGG_OPEN_STATE_KEY, Event.EVENT_EGG_HATCH_DELAY, Event.openWeek1EventEgg)
+    end
+
+    function Event.stopEventEggOpen()
+        Core.clearCurrentAction("Opening Event Egg")
+        if not Core.state.auto_egg_opener and not Core.state.auto_petdex and not Core.state.petdex_auto_teleport then
+            Core.releasePriority("eggs")
+        end
     end
 
     function Event.setEventMerchantStatus(text)
