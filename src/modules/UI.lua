@@ -992,8 +992,9 @@ return function(HS, S)
         event_egg = {
             title = "Event Egg",
             items = {
-                {type="label", text="Week 1"},
-                {type="toggle", key=HS.Event.EVENT_EGG_OPEN_STATE_KEY, label="Auto Open Week 1 Event Egg",
+                {type="selection", key=HS.Event.EVENT_EGG_SELECTED_KEY, label="Selected Event Egg",
+                    options=HS.Event.EVENT_EGG_SELECTION_OPTIONS, default=HS.Event.EVENT_EGG_WEEK1_NAME, instant=true},
+                {type="toggle", key=HS.Event.EVENT_EGG_OPEN_STATE_KEY, label="Auto Open Selected Event Egg",
                     callback=function(on)
                         if on then HS.Event.startEventEggOpen()
                         else HS.Event.stopEventEggOpen() end

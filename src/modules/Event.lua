@@ -20,15 +20,43 @@ return function(HS, S)
     Event.AUTO_EQUIP_BEST_PET_DEBOUNCE = 5
     Event.EVENT_EGG_OPEN_STATE_KEY = "event_egg_auto_open_week1_gl_egg"
     Event.EVENT_EGG_TP_STATE_KEY = "event_egg_auto_tp"
+    Event.EVENT_EGG_SELECTED_KEY = "event_egg_selected"
     Event.EVENT_EGG_WEEK1_NAME = "GL Egg"
+    Event.EVENT_EGG_WEEK2_NAME = "GM Egg"
     Event.EVENT_EGG_HATCH_DELAY = (HS.EggOpener and HS.EggOpener.HATCH_DELAY) or 0.35
     Event.EVENT_EGG_TELEPORT_DELAY = (HS.PetdexFarm and HS.PetdexFarm.TELEPORT_DELAY) or 1.0
     Event.EVENT_EGG_TP_CFRAME = CFrame.new(
-        824.292236, 83.591301, 1408.22717,
-        -0.983073473, 5.67926506e-08, 0.183211744,
-        5.20563184e-08, 1, -3.06610595e-08,
-        -0.183211744, -2.06047446e-08, -0.983073473
+        840.032104, 84.2069016, 1409.93567,
+        -0.98185569, -2.28113572e-09, 0.189629704,
+        -1.40259782e-09, 1, 4.76711737e-09,
+        -0.189629704, 4.41464687e-09, -0.98185569
     )
+    Event.EVENT_EGG_WEEK2_TP_CFRAME = CFrame.new(
+        812.485413, 84.3324661, 1408.48267,
+        -0.999114037, 5.14351655e-08, 0.0420849398,
+        5.25406989e-08, 1, 2.51630059e-08,
+        -0.0420849398, 2.73518843e-08, -0.999114037
+    )
+    Event.EVENT_EGGS = {
+        GL = {
+            key = "GL",
+            label = "Week 1 Event Egg",
+            eggName = Event.EVENT_EGG_WEEK1_NAME,
+            tpCFrame = Event.EVENT_EGG_TP_CFRAME,
+            resolveArea = function() return Event.resolveGLEggArea() end,
+        },
+        GM = {
+            key = "GM",
+            label = "Week 2 Event Egg",
+            eggName = Event.EVENT_EGG_WEEK2_NAME,
+            tpCFrame = Event.EVENT_EGG_WEEK2_TP_CFRAME,
+            resolveArea = function() return Event.resolveGMEggArea() end,
+        },
+    }
+    Event.EVENT_EGG_SELECTION_OPTIONS = {
+        Event.EVENT_EGG_WEEK1_NAME,
+        Event.EVENT_EGG_WEEK2_NAME,
+    }
     Event.EVENT_BOSS_TP_CFRAME = CFrame.new(
         1021.30432, 89.4617004, 1521.46338,
         -0.734982431, -5.48722916e-08, -0.678086162,
@@ -112,6 +140,7 @@ return function(HS, S)
     Event.lastEventMerchantBuy = Event.lastEventMerchantBuy or {}
     Event.lastAutoEquipBestPet = Event.lastAutoEquipBestPet or 0
     Event.eventEggLastTeleport = Event.eventEggLastTeleport or 0
+    Event.eventEggGMStandName = Event.eventEggGMStandName or nil
 
     local function getModulesFolder()
         local replicatedStorage = S.ReplicatedStorage
@@ -214,7 +243,7 @@ return function(HS, S)
             and math.abs(localPos.Z) <= half.Z
     end
 
-    function Event.getEventEggAreaPart()
+    function Event.resolveGLEggArea()
         local map = Event.getSummerEventMap()
         if not map then return nil end
         local eggStand = map:FindFirstChild("Egg Stand")
@@ -222,52 +251,105 @@ return function(HS, S)
         return floor and floor:IsA("BasePart") and floor or nil
     end
 
-    function Event.isInsideEventEggArea(root)
+    function Event.resolveGMEggArea()
+        local map = Event.getSummerEventMap()
+        if not map then return nil end
+
+        local cachedName = Event.eventEggGMStandName
+        if type(cachedName) == "string" and cachedName ~= "" then
+            local namedStand = map:FindFirstChild(cachedName)
+            local namedFloor = namedStand and namedStand:FindFirstChild("Floor")
+            if namedFloor and namedFloor:IsA("BasePart") then return namedFloor end
+        end
+
+        local stand = map:GetChildren()[15]
+        local floor = stand and stand:FindFirstChild("Floor")
+        if not floor or not floor:IsA("BasePart") then return nil end
+        if type(stand.Name) == "string" and stand.Name ~= "" then
+            local sameNameCount = 0
+            for _, child in ipairs(map:GetChildren()) do
+                if child.Name == stand.Name then sameNameCount += 1 end
+            end
+            if sameNameCount == 1 then
+                Event.eventEggGMStandName = stand.Name
+            end
+        end
+        return floor
+    end
+
+    function Event.getSelectedEventEgg()
+        local selected = Core.selectionState[Event.EVENT_EGG_SELECTED_KEY]
+        for _, egg in pairs(Event.EVENT_EGGS) do
+            if selected == egg.key or selected == egg.eggName or selected == egg.label then
+                return egg
+            end
+        end
+        return Event.EVENT_EGGS.GL
+    end
+
+    function Event.getEventEggAreaPart(egg)
+        egg = egg or Event.getSelectedEventEgg()
+        if type(egg) ~= "table" or type(egg.resolveArea) ~= "function" then return nil end
+        local ok, area = pcall(egg.resolveArea)
+        return ok and area and area:IsA("BasePart") and area or nil
+    end
+
+    function Event.isInsideEventEggArea(root, egg)
         root = root or Core.getRoot()
         if not root then return false end
-        local area = Event.getEventEggAreaPart()
+        local area = Event.getEventEggAreaPart(egg)
         return area and Event.isPointInsideEventEggPart(area, root.Position) or false
     end
 
-    function Event.shouldContinueEventEggOpen()
-        return Core.alive and Core.state[Event.EVENT_EGG_OPEN_STATE_KEY] == true
+    function Event.shouldContinueEventEggOpen(eggKey)
+        if not Core.alive or Core.state[Event.EVENT_EGG_OPEN_STATE_KEY] ~= true then return false end
+        local selectedEgg = Event.getSelectedEventEgg()
+        return eggKey == nil or (selectedEgg and selectedEgg.key == eggKey)
     end
 
-    function Event.teleportToEventEgg()
-        if not Event.getEventEggAreaPart() then return false end
-        if Event.isInsideEventEggArea() then return true end
+    function Event.teleportToEventEgg(egg)
+        egg = egg or Event.getSelectedEventEgg()
+        if not egg or not Event.getEventEggAreaPart(egg) then return false end
+        if Event.isInsideEventEggArea(nil, egg) then return true end
         if not Core.state[Event.EVENT_EGG_TP_STATE_KEY] then return false end
         if os.clock() - (Event.eventEggLastTeleport or 0) < Event.EVENT_EGG_TELEPORT_DELAY then return false end
 
         Event.eventEggLastTeleport = os.clock()
-        return Core.teleportWorld(Event.EVENT_EGG_TP_CFRAME, "event egg", function()
-            return Event.shouldContinueEventEggOpen()
+        return Core.teleportWorld(egg.tpCFrame, "event egg", function()
+            return Event.shouldContinueEventEggOpen(egg.key)
                 and Core.state[Event.EVENT_EGG_TP_STATE_KEY] == true
         end)
     end
 
-    function Event.openWeek1EventEgg()
-        if not Event.shouldContinueEventEggOpen() then return end
+    function Event.openSelectedEventEgg()
+        local egg = Event.getSelectedEventEgg()
+        if not egg or type(egg.eggName) ~= "string" or egg.eggName == "" then return end
+        if not Event.shouldContinueEventEggOpen(egg.key) then return end
 
-        if not Event.isInsideEventEggArea() then
+        if not Event.isInsideEventEggArea(nil, egg) then
             if Core.state[Event.EVENT_EGG_TP_STATE_KEY] then
-                Event.teleportToEventEgg()
+                Event.teleportToEventEgg(egg)
             end
             return
         end
 
-        if not Core.waitForPriority("eggs", Event.shouldContinueEventEggOpen) then return end
-        if not Event.isInsideEventEggArea() then return end
+        if not Core.waitForPriority("eggs", function()
+            return Event.shouldContinueEventEggOpen(egg.key)
+        end) then return end
+        if not Event.shouldContinueEventEggOpen(egg.key) then return end
+        if not Event.isInsideEventEggArea(nil, egg) then return end
         if not Core.claimPriority("eggs") then return end
 
         Core.setCurrentAction("Opening Event Egg", math.max(2, Event.EVENT_EGG_HATCH_DELAY + 1))
         pcall(function()
-            Core.UIActionRemote:FireServer("BuyEgg", Event.EVENT_EGG_WEEK1_NAME)
+            Core.UIActionRemote:FireServer("BuyEgg", egg.eggName)
         end)
     end
 
+    Event.openWeek1EventEgg = Event.openSelectedEventEgg
+
     function Event.startEventEggOpen()
-        Core.loopWhile(Event.EVENT_EGG_OPEN_STATE_KEY, Event.EVENT_EGG_HATCH_DELAY, Event.openWeek1EventEgg)
+        Core.loopWhile(Event.EVENT_EGG_OPEN_STATE_KEY, Event.EVENT_EGG_HATCH_DELAY, Event.openSelectedEventEgg)
     end
 
     function Event.stopEventEggOpen()
