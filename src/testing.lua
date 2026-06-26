@@ -7127,19 +7127,26 @@ do
     Event.EVENT_EGG_SELECTED_KEY = "event_egg_selected"
     Event.EVENT_EGG_WEEK1_NAME = "GL Egg"
     Event.EVENT_EGG_WEEK2_NAME = "GM Egg"
+    Event.EVENT_EGG_WEEK3_NAME = "GN Egg"
     Event.EVENT_EGG_HATCH_DELAY = (HS.EggOpener and HS.EggOpener.HATCH_DELAY) or 0.35
     Event.EVENT_EGG_TELEPORT_DELAY = (HS.PetdexFarm and HS.PetdexFarm.TELEPORT_DELAY) or 1.0
     Event.EVENT_EGG_TP_CFRAME = CFrame.new(
-        840.032104, 84.2069016, 1409.93567,
-        -0.98185569, -2.28113572e-09, 0.189629704,
-        -1.40259782e-09, 1, 4.76711737e-09,
-        -0.189629704, 4.41464687e-09, -0.98185569
+        856.81665, 83.6843643, 1409.43738,
+        -0.961439669, -8.68240804e-08, -0.27501592,
+        -9.53440136e-08, 1, 1.76114554e-08,
+        0.27501592, 4.31534737e-08, -0.961439669
     )
     Event.EVENT_EGG_WEEK2_TP_CFRAME = CFrame.new(
-        812.485413, 84.3324661, 1408.48267,
-        -0.999114037, 5.14351655e-08, 0.0420849398,
-        5.25406989e-08, 1, 2.51630059e-08,
-        -0.0420849398, 2.73518843e-08, -0.999114037
+        829.769592, 83.7912979, 1408.30042,
+        -0.959475577, 3.27224164e-10, 0.281791806,
+        -1.47768739e-08, 1, -5.14751441e-08,
+        -0.281791806, -5.35531441e-08, -0.959475577
+    )
+    Event.EVENT_EGG_WEEK3_TP_CFRAME = CFrame.new(
+        797.733398, 83.9170609, 1406.32117,
+        -0.49568823, 1.52388644e-08, 0.868500531,
+        4.96191284e-08, 1, 1.07734568e-08,
+        -0.868500531, 4.84345151e-08, -0.49568823
     )
     Event.EVENT_EGGS = {
         GL = {
@@ -7156,10 +7163,18 @@ do
             tpCFrame = Event.EVENT_EGG_WEEK2_TP_CFRAME,
             resolveArea = function() return Event.resolveGMEggArea() end,
         },
+        GN = {
+            key = "GN",
+            label = "GN Egg",
+            eggName = Event.EVENT_EGG_WEEK3_NAME,
+            tpCFrame = Event.EVENT_EGG_WEEK3_TP_CFRAME,
+            resolveArea = function() return Event.resolveGNEggArea() end,
+        },
     }
     Event.EVENT_EGG_SELECTION_OPTIONS = {
         Event.EVENT_EGG_WEEK1_NAME,
         Event.EVENT_EGG_WEEK2_NAME,
+        Event.EVENT_EGG_WEEK3_NAME,
     }
     Event.EVENT_BOSS_TP_CFRAME = CFrame.new(
         1021.30432, 89.4617004, 1521.46338,
@@ -7245,6 +7260,7 @@ do
     Event.lastAutoEquipBestPet = Event.lastAutoEquipBestPet or 0
     Event.eventEggLastTeleport = Event.eventEggLastTeleport or 0
     Event.eventEggGMStandName = Event.eventEggGMStandName or nil
+    Event.eventEggGNStandName = Event.eventEggGNStandName or nil
 
     local function getModulesFolder()
         local replicatedStorage = S.ReplicatedStorage
@@ -7376,6 +7392,32 @@ do
             end
             if sameNameCount == 1 then
                 Event.eventEggGMStandName = stand.Name
+            end
+        end
+        return floor
+    end
+
+    function Event.resolveGNEggArea()
+        local map = Event.getSummerEventMap()
+        if not map then return nil end
+
+        local cachedName = Event.eventEggGNStandName
+        if type(cachedName) == "string" and cachedName ~= "" then
+            local namedStand = map:FindFirstChild(cachedName)
+            local namedFloor = namedStand and namedStand:FindFirstChild("Floor")
+            if namedFloor and namedFloor:IsA("BasePart") then return namedFloor end
+        end
+
+        local stand = map:GetChildren()[16]
+        local floor = stand and stand:FindFirstChild("Floor")
+        if not floor or not floor:IsA("BasePart") then return nil end
+        if type(stand.Name) == "string" and stand.Name ~= "" then
+            local sameNameCount = 0
+            for _, child in ipairs(map:GetChildren()) do
+                if child.Name == stand.Name then sameNameCount += 1 end
+            end
+            if sameNameCount == 1 then
+                Event.eventEggGNStandName = stand.Name
             end
         end
         return floor
