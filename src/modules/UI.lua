@@ -330,7 +330,7 @@ return function(HS, S)
             UI.make("TextLabel", {Parent=row, BackgroundTransparency=1, Position=UDim2.fromOffset(8,0), Size=UDim2.new(1, item.showTimer and -106 or -50, 1, 0), Text=item.label, Font=Enum.Font.Gotham, TextSize=textSz, TextColor3=labelColor, TextXAlignment=Enum.TextXAlignment.Left})
         end
         if item.showTimer then
-            HS.Dungeon.timerLabel = UI.make("TextLabel", {Parent=row, BackgroundTransparency=1, Position=UDim2.new(1,-98,0,0), Size=UDim2.fromOffset(54,30), Text="0:00", Font=Enum.Font.GothamBold, TextSize=11, TextColor3=C.textDim, TextXAlignment=Enum.TextXAlignment.Right})
+            HS.Dungeon.timerLabel = UI.make("TextLabel", {Parent=row, BackgroundTransparency=1, Position=UDim2.new(1,-98,0,0), Size=UDim2.fromOffset(54,30), Text="Queue Up", Font=Enum.Font.GothamBold, TextSize=11, TextColor3=C.textDim, TextXAlignment=Enum.TextXAlignment.Right})
             HS.Dungeon.startTimer()
         end
         UI.makeToggleVisual(row, on)
@@ -1418,6 +1418,9 @@ return function(HS, S)
     allOffBtn.MouseButton1Click:Connect(function() UI.allOff(); UI.renderContent() end)
     killBtn.MouseButton1Click:Connect(function()
         HS.Session.suppressSave = true
+        if HS.Dungeon and HS.Dungeon.clearCooldownTimer then
+            HS.Dungeon.clearCooldownTimer("kill")
+        end
         Core.alive = false; UI.allOff(true); task.wait(1.5); gui:Destroy(); toggleGui:Destroy()
     end)
     toggleButton.MouseButton1Click:Connect(function() Core.uiOpen = not Core.uiOpen; main.Visible = Core.uiOpen end)

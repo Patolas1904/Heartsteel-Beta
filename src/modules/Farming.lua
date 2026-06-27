@@ -1338,9 +1338,12 @@ return function(HS, S)
             Core.releasePriority("clan_quests")
             return false
         end
-        pcall(function() Core.UIActionRemote:FireServer("DungeonGroupAction", "Start") end)
+        local startOk = pcall(function() Core.UIActionRemote:FireServer("DungeonGroupAction", "Start") end)
         if HS.Dungeon then
             HS.Dungeon.queueHandled = true
+            if startOk and HS.Dungeon.markStartSignalSent then
+                HS.Dungeon.markStartSignalSent("Clan DungeonGroupAction Start")
+            end
             if HS.Dungeon.markRunActive then HS.Dungeon.markRunActive("clan dungeon start") end
         end
         Core.lockWorldTeleports(30)

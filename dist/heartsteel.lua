@@ -2612,9 +2612,12 @@ do
             Core.releasePriority("clan_quests")
             return false
         end
-        pcall(function() Core.UIActionRemote:FireServer("DungeonGroupAction", "Start") end)
+        local startOk = pcall(function() Core.UIActionRemote:FireServer("DungeonGroupAction", "Start") end)
         if HS.Dungeon then
             HS.Dungeon.queueHandled = true
+            if startOk and HS.Dungeon.markStartSignalSent then
+                HS.Dungeon.markStartSignalSent("Clan DungeonGroupAction Start")
+            end
             if HS.Dungeon.markRunActive then HS.Dungeon.markRunActive("clan dungeon start") end
         end
         Core.lockWorldTeleports(30)
@@ -4428,11 +4431,14 @@ do
 
     -- ── Dungeon timer state ─────────────────────────────────────
     Dungeon.timerLabel              = nil
-    Dungeon.timerSource             = nil
-    Dungeon.timerSourceConnection   = nil
     Dungeon.timerWatcherThread      = nil
-    Dungeon.timerCachedText         = "0:00"
-    Dungeon.timerEndsAt             = nil
+    Dungeon.timerCachedText         = "Queue Up"
+    Dungeon.cooldownStartedAt       = nil
+    Dungeon.cooldownEndsAt          = nil
+    Dungeon.cooldownDuration        = 15 * 60
+    Dungeon.pendingStartTimer       = false
+    Dungeon.lastStartSignalAt       = 0
+    Dungeon.firstBotSeenForRun      = false
     Dungeon.queueHandled            = false
     Dungeon.queueDeferredInside     = false
     Dungeon.wasInside               = false
@@ -4511,62 +4517,79 @@ do
     Dungeon.CHEST_LOOP_DELAY = 0.1
 
     -- ── Timer helpers ────────────────────────────────────────────
-    function Dungeon.parseTimerText(text)
-        local mins, secs = tostring(text or ""):match("^(%d+):(%d+)$")
-        if not mins then return nil end
-        return (tonumber(mins) or 0) * 60 + (tonumber(secs) or 0)
-    end
-
     function Dungeon.formatSeconds(totalSeconds)
         local clamped = math.max(0, totalSeconds or 0)
         return string.format("%d:%02d", math.floor(clamped / 60), clamped % 60)
     end
 
-    function Dungeon.updateTimerCache(text)
-        local normalized = tostring(text or "")
-        if normalized == "" then return end
-        local parsed = Dungeon.parseTimerText(normalized)
-        if parsed then
-            Dungeon.timerEndsAt    = os.clock() + parsed
-            Dungeon.timerCachedText = Dungeon.formatSeconds(parsed)
-        else
-            Dungeon.timerEndsAt    = nil
-            Dungeon.timerCachedText = normalized
+    function Dungeon.clearStartTimerState()
+        Dungeon.pendingStartTimer = false
+        Dungeon.lastStartSignalAt = 0
+        Dungeon.firstBotSeenForRun = false
+    end
+
+    function Dungeon.clearCooldownTimer(reason)
+        Dungeon.cooldownStartedAt = nil
+        Dungeon.cooldownEndsAt = nil
+        Dungeon.timerCachedText = "Queue Up"
+        Dungeon.clearStartTimerState()
+        Dungeon.refreshTimerLabel()
+    end
+
+    function Dungeon.markStartSignalSent(reason)
+        Dungeon.pendingStartTimer = true
+        Dungeon.lastStartSignalAt = os.clock()
+        Dungeon.firstBotSeenForRun = false
+        Core.debugLog("Dungeon start signal sent:", reason or "Start")
+    end
+
+    function Dungeon.getCooldownRemaining()
+        local endsAt = tonumber(Dungeon.cooldownEndsAt)
+        if not endsAt then return 0 end
+
+        local remaining = math.max(0, math.ceil(endsAt - os.clock()))
+        if remaining <= 0 then
+            Dungeon.cooldownStartedAt = nil
+            Dungeon.cooldownEndsAt = nil
+            Dungeon.timerCachedText = "Queue Up"
+            return 0
         end
+
+        return remaining
+    end
+
+    function Dungeon.isCooldownActive()
+        return Dungeon.getCooldownRemaining() > 0
+    end
+
+    function Dungeon.startCooldownFromBot(reason)
+        if Dungeon.pendingStartTimer ~= true or Dungeon.firstBotSeenForRun == true then return end
+
+        local now = os.clock()
+        Dungeon.pendingStartTimer = false
+        Dungeon.firstBotSeenForRun = true
+        Dungeon.cooldownStartedAt = now
+        Dungeon.cooldownEndsAt = now + (Dungeon.cooldownDuration or 900)
+        Dungeon.timerCachedText = Dungeon.formatSeconds(Dungeon.cooldownDuration or 900)
+        Dungeon.refreshTimerLabel()
+        Core.debugLog("Dungeon cooldown timer started:", reason or "first bot detected")
     end
 
     function Dungeon.getEffectiveTimerText()
-        local liveText = Dungeon.timerSource and Dungeon.timerSource.Text or ""
-        if liveText ~= "" then Dungeon.updateTimerCache(liveText); return liveText end
-        if Dungeon.timerEndsAt then
-            local remaining = math.max(0, math.ceil(Dungeon.timerEndsAt - os.clock()))
-            if remaining <= 0 then
-                Dungeon.timerEndsAt = nil; Dungeon.timerCachedText = "Queue Up"; return "Queue Up"
-            end
+        local remaining = Dungeon.getCooldownRemaining()
+        if remaining > 0 then
             Dungeon.timerCachedText = Dungeon.formatSeconds(remaining)
             return Dungeon.timerCachedText
         end
+        Dungeon.timerCachedText = "Queue Up"
         return Dungeon.timerCachedText
     end
 
     function Dungeon.refreshTimerLabel()
         if not Dungeon.timerLabel or not Dungeon.timerLabel.Parent then return end
         local timerText = Dungeon.getEffectiveTimerText()
-        Dungeon.timerLabel.Text = timerText ~= "" and timerText or "0:00"
-        Dungeon.timerLabel.TextColor3 = (timerText ~= "" and timerText ~= "0:00") and Core.C.orange or Core.C.textDim
-    end
-
-    function Dungeon.getTimerSource()
-        local gameplay = Core.Gameplay
-        local regionsLoaded = gameplay and gameplay:FindFirstChild("RegionsLoaded")
-        local dungeonLobby  = regionsLoaded and regionsLoaded:FindFirstChild("Dungeon Lobby")
-        local locations     = dungeonLobby and dungeonLobby:FindFirstChild("Locations")
-        local dungeonSelect = locations and locations:FindFirstChild("DungeonSelect")
-        local attachment    = dungeonSelect and dungeonSelect:FindFirstChild("Attachment")
-        local billboardGui  = attachment and attachment:FindFirstChild("BillboardGui")
-        local frame         = billboardGui and billboardGui:FindFirstChild("Frame")
-        local desc          = frame and frame:FindFirstChild("Desc")
-        if desc and desc:IsA("TextLabel") then return desc end
+        Dungeon.timerLabel.Text = timerText ~= "" and timerText or "Queue Up"
+        Dungeon.timerLabel.TextColor3 = Dungeon.isCooldownActive() and Core.C.orange or Core.C.textDim
     end
 
     function Dungeon.isInsideActive()
@@ -4598,6 +4621,9 @@ do
                                 local root = target:FindFirstChild("HumanoidRootPart") or target.PrimaryPart
                                 local humanoid = target:FindFirstChildOfClass("Humanoid")
                                 if root and (not humanoid or humanoid.Health > 0) then
+                                    if Dungeon.startCooldownFromBot then
+                                        Dungeon.startCooldownFromBot("first bot detected")
+                                    end
                                     if Dungeon.markRunActive then
                                         Dungeon.markRunActive("bot detected")
                                     end
@@ -4657,6 +4683,7 @@ do
         Dungeon.runProtectionHeldLogged = false
         Dungeon.runEnding = false
         Dungeon.lastDungeonActivityAt = os.clock()
+        Dungeon.clearStartTimerState()
         Dungeon.forceEndedUntil = os.clock() + 10
         Dungeon.autoStartCooldownUntil = math.max(Dungeon.autoStartCooldownUntil or 0, os.clock() + Core.DUNGEON_AUTOSTART_COOLDOWN)
         Core.dungeonActive = false
@@ -4752,7 +4779,7 @@ do
         Core.clearCurrentAction("Running Dungeon")
         Core.clearCurrentAction("Farming Dungeon Enemies")
         Core.clearCurrentAction("Claiming Dungeon Chest")
-        Core.debugLog("Dungeon ended;", reason or "detected", "- cooldown started for", Core.DUNGEON_AUTOSTART_COOLDOWN, "seconds")
+        Core.debugLog("Dungeon ended;", reason or "detected", "- local retry delay", Core.DUNGEON_AUTOSTART_COOLDOWN, "seconds")
         -- Restart the Auto Cycle thread only if it died; normal dungeon resume keeps the toggle on and resets runtime state in AutoCycle.
         if Core.state.auto_cycle and HS.AutoCycle and not HS.AutoCycle.enabled then
             Core.debugLog("Dungeon ended — resuming Auto Cycle")
@@ -4895,7 +4922,10 @@ do
             Core.debugLog("Dungeon auto-start skipped: already inside dungeon")
             return
         end
-        pcall(function() Core.UIActionRemote:FireServer("DungeonGroupAction","Start") end)
+        local startOk = pcall(function() Core.UIActionRemote:FireServer("DungeonGroupAction","Start") end)
+        if startOk then
+            Dungeon.markStartSignalSent("DungeonGroupAction Start")
+        end
         Dungeon.queueHandled = true
         Core.lockWorldTeleports(30)
         Dungeon.markRunActive("auto-start")
@@ -4907,21 +4937,6 @@ do
         Dungeon.timerWatcherThread = task.spawn(function()
             while Core.alive do
                 Dungeon.updateAutoStartState()
-                local source = Dungeon.getTimerSource()
-                if source ~= Dungeon.timerSource then
-                    if Dungeon.timerSourceConnection then
-                        Dungeon.timerSourceConnection:Disconnect(); Dungeon.timerSourceConnection = nil
-                    end
-                    Dungeon.timerSource = source
-                    if source then
-                        Dungeon.timerSourceConnection = source:GetPropertyChangedSignal("Text"):Connect(function()
-                            Dungeon.updateTimerCache(source.Text); Dungeon.refreshTimerLabel()
-                        end)
-                    end
-                end
-                if Dungeon.timerSource and Dungeon.timerSource.Text ~= "" then
-                    Dungeon.updateTimerCache(Dungeon.timerSource.Text)
-                end
                 Dungeon.refreshTimerLabel()
                 Dungeon.tryAutoStart()
                 task.wait(1)
@@ -10386,7 +10401,7 @@ do
             UI.make("TextLabel", {Parent=row, BackgroundTransparency=1, Position=UDim2.fromOffset(8,0), Size=UDim2.new(1, item.showTimer and -106 or -50, 1, 0), Text=item.label, Font=Enum.Font.Gotham, TextSize=textSz, TextColor3=labelColor, TextXAlignment=Enum.TextXAlignment.Left})
         end
         if item.showTimer then
-            HS.Dungeon.timerLabel = UI.make("TextLabel", {Parent=row, BackgroundTransparency=1, Position=UDim2.new(1,-98,0,0), Size=UDim2.fromOffset(54,30), Text="0:00", Font=Enum.Font.GothamBold, TextSize=11, TextColor3=C.textDim, TextXAlignment=Enum.TextXAlignment.Right})
+            HS.Dungeon.timerLabel = UI.make("TextLabel", {Parent=row, BackgroundTransparency=1, Position=UDim2.new(1,-98,0,0), Size=UDim2.fromOffset(54,30), Text="Queue Up", Font=Enum.Font.GothamBold, TextSize=11, TextColor3=C.textDim, TextXAlignment=Enum.TextXAlignment.Right})
             HS.Dungeon.startTimer()
         end
         UI.makeToggleVisual(row, on)
@@ -11474,6 +11489,9 @@ do
     allOffBtn.MouseButton1Click:Connect(function() UI.allOff(); UI.renderContent() end)
     killBtn.MouseButton1Click:Connect(function()
         HS.Session.suppressSave = true
+        if HS.Dungeon and HS.Dungeon.clearCooldownTimer then
+            HS.Dungeon.clearCooldownTimer("kill")
+        end
         Core.alive = false; UI.allOff(true); task.wait(1.5); gui:Destroy(); toggleGui:Destroy()
     end)
     toggleButton.MouseButton1Click:Connect(function() Core.uiOpen = not Core.uiOpen; main.Visible = Core.uiOpen end)
