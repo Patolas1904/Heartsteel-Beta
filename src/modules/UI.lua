@@ -1328,6 +1328,14 @@ return function(HS, S)
             Core.applyLogsConfig(savedLogs)
         end
 
+        local savedDungeon = type(savedSession.Dungeon) == "table" and savedSession.Dungeon
+            or type(savedSession.dungeon) == "table" and savedSession.dungeon
+            or type(savedConfig.Dungeon) == "table" and savedConfig.Dungeon
+            or nil
+        if HS.Dungeon and HS.Dungeon.applySessionState then
+            pcall(HS.Dungeon.applySessionState, savedDungeon)
+        end
+
         Core.debugLog(
             "Session load restored state keys count:", HS.Session.countKeys(Core.state),
             "input keys count:", HS.Session.countKeys(Core.inputState),

@@ -162,6 +162,9 @@ return function(HS, S)
         if HS.Logs and HS.Logs.Dungeon and HS.Logs.Dungeon.clearRows then
             pcall(HS.Logs.Dungeon.clearRows)
         end
+        if HS.Dungeon and HS.Dungeon.clearCooldownTimer then
+            pcall(HS.Dungeon.clearCooldownTimer, "session reset", true)
+        end
     end
 
     function Session.runDefaultCallbacks()
@@ -251,7 +254,8 @@ return function(HS, S)
             "input keys count:", Session.countKeys(type(data.inputState) == "table" and data.inputState or data.inputs),
             "slider keys count:", Session.countKeys(type(data.sliderState) == "table" and data.sliderState or data.sliders),
             "selection keys count:", Session.countKeys(type(data.selectionState) == "table" and data.selectionState or data.selections),
-            "has Logs config:", tostring(type(data.Logs) == "table" or (type(data.config) == "table" and type(data.config.Logs) == "table"))
+            "has Logs config:", tostring(type(data.Logs) == "table" or (type(data.config) == "table" and type(data.config.Logs) == "table")),
+            "has Dungeon cooldown:", tostring(type(data.Dungeon) == "table")
         )
         return data
     end
@@ -288,6 +292,7 @@ return function(HS, S)
             sliders = Core.sliderState,
             inputs = Core.inputState,
             Logs = Core.getLogsConfig and Core.getLogsConfig() or nil,
+            Dungeon = HS.Dungeon and HS.Dungeon.getSessionState and HS.Dungeon.getSessionState() or nil,
         }
         Core.debugLog(
             "Session save path:", Session.FILE_NAME,
@@ -295,7 +300,8 @@ return function(HS, S)
             "input keys count:", Session.countKeys(Core.inputState),
             "slider keys count:", Session.countKeys(Core.sliderState),
             "selection keys count:", Session.countKeys(Core.selectionState),
-            "has Logs config:", tostring(type(data.Logs) == "table")
+            "has Logs config:", tostring(type(data.Logs) == "table"),
+            "has Dungeon cooldown:", tostring(type(data.Dungeon) == "table")
         )
         local okEncode, encoded = pcall(function()
             return S.HttpService:JSONEncode(data)

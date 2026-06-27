@@ -9,6 +9,8 @@ return function(HS, S)
     Dungeon.timerCachedText         = "Queue Up"
     Dungeon.cooldownStartedAt       = nil
     Dungeon.cooldownEndsAt          = nil
+    Dungeon.cooldownStartedAtUnix   = nil
+    Dungeon.cooldownEndsAtUnix      = nil
     Dungeon.cooldownDuration        = 15 * 60
     Dungeon.pendingStartTimer       = false
     Dungeon.lastStartSignalAt       = 0
@@ -102,12 +104,60 @@ return function(HS, S)
         Dungeon.firstBotSeenForRun = false
     end
 
-    function Dungeon.clearCooldownTimer(reason)
+    function Dungeon.saveCooldownSession()
+        if HS.Session and HS.Session.save and HS.Session.suppressSave ~= true and HS.Session.isResetting ~= true then
+            pcall(HS.Session.save)
+        end
+    end
+
+    function Dungeon.getSessionState()
+        local remaining = Dungeon.getCooldownRemaining()
+        if remaining <= 0 then return nil end
+
+        return {
+            CooldownStartedAtUnix = tonumber(Dungeon.cooldownStartedAtUnix),
+            CooldownEndsAtUnix = tonumber(Dungeon.cooldownEndsAtUnix) or (os.time() + remaining),
+            CooldownDuration = tonumber(Dungeon.cooldownDuration) or 900,
+        }
+    end
+
+    function Dungeon.applySessionState(saved)
+        if type(saved) ~= "table" then return false end
+
+        local duration = tonumber(saved.CooldownDuration or saved.cooldownDuration) or (Dungeon.cooldownDuration or 900)
+        local endsAtUnix = tonumber(saved.CooldownEndsAtUnix or saved.cooldownEndsAtUnix)
+        local startedAtUnix = tonumber(saved.CooldownStartedAtUnix or saved.cooldownStartedAtUnix)
+        if not endsAtUnix then return false end
+
+        local remaining = math.max(0, math.ceil(endsAtUnix - os.time()))
+        if remaining <= 0 then
+            Dungeon.clearCooldownTimer("expired saved cooldown", true)
+            return false
+        end
+
+        Dungeon.cooldownDuration = duration
+        Dungeon.cooldownStartedAt = os.clock() - math.max(0, duration - remaining)
+        Dungeon.cooldownEndsAt = os.clock() + remaining
+        Dungeon.cooldownStartedAtUnix = startedAtUnix or (endsAtUnix - duration)
+        Dungeon.cooldownEndsAtUnix = endsAtUnix
+        Dungeon.timerCachedText = Dungeon.formatSeconds(remaining)
+        Dungeon.clearStartTimerState()
+        Dungeon.refreshTimerLabel()
+        Core.debugLog("Restored dungeon cooldown from session:", Dungeon.timerCachedText)
+        return true
+    end
+
+    function Dungeon.clearCooldownTimer(reason, skipSave)
         Dungeon.cooldownStartedAt = nil
         Dungeon.cooldownEndsAt = nil
+        Dungeon.cooldownStartedAtUnix = nil
+        Dungeon.cooldownEndsAtUnix = nil
         Dungeon.timerCachedText = "Queue Up"
         Dungeon.clearStartTimerState()
         Dungeon.refreshTimerLabel()
+        if skipSave ~= true then
+            Dungeon.saveCooldownSession()
+        end
     end
 
     function Dungeon.markStartSignalSent(reason)
@@ -118,13 +168,28 @@ return function(HS, S)
     end
 
     function Dungeon.getCooldownRemaining()
+        local endsAtUnix = tonumber(Dungeon.cooldownEndsAtUnix)
+        if endsAtUnix then
+            local remainingUnix = math.max(0, math.ceil(endsAtUnix - os.time()))
+            if remainingUnix > 0 then
+                Dungeon.cooldownEndsAt = os.clock() + remainingUnix
+                return remainingUnix
+            end
+        end
+
         local endsAt = tonumber(Dungeon.cooldownEndsAt)
-        if not endsAt then return 0 end
+        if not endsAt then
+            Dungeon.cooldownStartedAtUnix = nil
+            Dungeon.cooldownEndsAtUnix = nil
+            return 0
+        end
 
         local remaining = math.max(0, math.ceil(endsAt - os.clock()))
         if remaining <= 0 then
             Dungeon.cooldownStartedAt = nil
             Dungeon.cooldownEndsAt = nil
+            Dungeon.cooldownStartedAtUnix = nil
+            Dungeon.cooldownEndsAtUnix = nil
             Dungeon.timerCachedText = "Queue Up"
             return 0
         end
@@ -144,8 +209,11 @@ return function(HS, S)
         Dungeon.firstBotSeenForRun = true
         Dungeon.cooldownStartedAt = now
         Dungeon.cooldownEndsAt = now + (Dungeon.cooldownDuration or 900)
+        Dungeon.cooldownStartedAtUnix = os.time()
+        Dungeon.cooldownEndsAtUnix = Dungeon.cooldownStartedAtUnix + (Dungeon.cooldownDuration or 900)
         Dungeon.timerCachedText = Dungeon.formatSeconds(Dungeon.cooldownDuration or 900)
         Dungeon.refreshTimerLabel()
+        Dungeon.saveCooldownSession()
         Core.debugLog("Dungeon cooldown timer started:", reason or "first bot detected")
     end
 
